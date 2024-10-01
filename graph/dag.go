@@ -1,11 +1,9 @@
 package graph
 
 import (
-	mv "blockConcur/multiversion"
 	"blockConcur/types"
+	"blockConcur/utils"
 )
-
-type NodeId *mv.GlobalId
 
 type Vertex struct {
 	Task      *types.Task
@@ -20,18 +18,30 @@ type Vertex struct {
 
 // UndirectedGraph
 type Graph struct {
-	Vertices     map[NodeId]*Vertex             `json:"vertices"`
-	AdjacencyMap map[NodeId]map[NodeId]struct{} `json:"adjacencyMap"`
-	ReverseMap   map[NodeId]map[NodeId]struct{} `json:"reverseMap"`
+	Vertices     map[*utils.ID]*Vertex                `json:"vertices"`
+	AdjacencyMap map[*utils.ID]map[*utils.ID]struct{} `json:"adjacencyMap"`
+	ReverseMap   map[*utils.ID]map[*utils.ID]struct{} `json:"reverseMap"`
 
 	CriticalPathLen uint64
 }
 
 func NewGraph() *Graph {
+	// adding virtual src and dst
+	v := make(map[*utils.ID]*Vertex)
+	v[utils.SnapshotID] = &Vertex{
+		Task: &types.Task{
+			Tid: utils.SnapshotID,
+		},
+	}
+	v[utils.EndID] = &Vertex{
+		Task: &types.Task{
+			Tid: utils.EndID,
+		},
+	}
 	return &Graph{
-		Vertices:     make(map[NodeId]*Vertex),
-		AdjacencyMap: make(map[NodeId]map[NodeId]struct{}),
-		ReverseMap:   make(map[NodeId]map[NodeId]struct{}),
+		Vertices:     v,
+		AdjacencyMap: make(map[*utils.ID]map[*utils.ID]struct{}),
+		ReverseMap:   make(map[*utils.ID]map[*utils.ID]struct{}),
 	}
 }
 
@@ -45,13 +55,22 @@ func (g *Graph) AddVertex(task *types.Task) {
 		Task: task,
 	}
 	g.Vertices[id] = v
-	g.AdjacencyMap[id] = make(map[NodeId]struct{})
-	g.ReverseMap[id] = make(map[NodeId]struct{})
 }
 
-func (g *Graph) AddEdge(source, destination NodeId) {
+func (g *Graph) AddEdge(source, destination *utils.ID) {
+	if source.Equal(destination) {
+		// dot not accepet self-loop
+		return
+	}
 	if g.HasEdge(source, destination) {
 		return
+	}
+	// if do not have edge, init the map
+	if _, ok := g.AdjacencyMap[source]; !ok {
+		g.AdjacencyMap[source] = make(map[*utils.ID]struct{})
+	}
+	if _, ok := g.ReverseMap[destination]; !ok {
+		g.ReverseMap[destination] = make(map[*utils.ID]struct{})
 	}
 	g.AdjacencyMap[source][destination] = struct{}{}
 	g.ReverseMap[destination][source] = struct{}{}
@@ -59,7 +78,7 @@ func (g *Graph) AddEdge(source, destination NodeId) {
 	g.Vertices[destination].InDegree++
 }
 
-func (g *Graph) HasEdge(source, destination NodeId) bool {
+func (g *Graph) HasEdge(source, destination *utils.ID) bool {
 	_, ok := g.Vertices[source]
 	if !ok {
 		return false
@@ -74,9 +93,9 @@ func (g *Graph) HasEdge(source, destination NodeId) bool {
 	return ok
 }
 
-func (g *Graph) getTopo(rev bool) []NodeId {
-	mapDegree := make(map[NodeId]uint)
-	degreeZero := make([]NodeId, 0)
+func (g *Graph) getTopo(rev bool) utils.IDs {
+	mapDegree := make(map[*utils.ID]uint)
+	degreeZero := make(utils.IDs, 0)
 	for id, v := range g.Vertices {
 		if rev {
 			mapDegree[id] = v.OutDegree
@@ -88,9 +107,9 @@ func (g *Graph) getTopo(rev bool) []NodeId {
 		}
 	}
 
-	topo := make([]NodeId, 0)
+	topo := make(utils.IDs, 0)
 	for {
-		newDegreeZero := make([]NodeId, 0)
+		newDegreeZero := make(utils.IDs, 0)
 		for _, vid := range degreeZero {
 			topo = append(topo, vid)
 			edges := g.AdjacencyMap[vid]
@@ -149,6 +168,20 @@ func (g *Graph) calcRankUCT() {
 		}
 		cur.Rank_u = maxRanku + cur.Task.Cost
 		cur.CT = maxct
+	}
+}
+
+func (g *Graph) GenerateVirtualVertex() {
+	for tid, v := range g.Vertices {
+		if tid == utils.SnapshotID || tid == utils.EndID {
+			continue
+		}
+		if v.InDegree == 0 {
+			g.AddEdge(utils.SnapshotID, tid)
+		}
+		if v.OutDegree == 0 {
+			g.AddEdge(tid, utils.EndID)
+		}
 	}
 }
 

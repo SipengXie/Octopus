@@ -1,43 +1,28 @@
 package rwset
 
 import (
+	"blockConcur/utils"
 	"sort"
-
-	"github.com/ledgerwatch/erigon-lib/common"
 )
 
 // readBy / writeBy
-type AccessedBy map[common.Address]map[common.Hash]map[int]struct{}
+type AccessedBy map[string]utils.IDs
 
 func NewAccessedBy() AccessedBy {
-	return make(map[common.Address]map[common.Hash]map[int]struct{})
+	return make(map[string]utils.IDs)
 }
 
-func (accessedBy AccessedBy) Add(addr common.Address, hash common.Hash, txID int) {
-	if _, ok := accessedBy[addr]; !ok {
-		accessedBy[addr] = make(map[common.Hash]map[int]struct{})
+func (accessedBy AccessedBy) Add(key string, txID *utils.ID) {
+	if _, ok := accessedBy[key]; !ok {
+		accessedBy[key] = make(utils.IDs, 0)
 	}
-	if _, ok := accessedBy[addr][hash]; !ok {
-		accessedBy[addr][hash] = make(map[int]struct{})
-	}
-	accessedBy[addr][hash][txID] = struct{}{}
+	accessedBy[key] = append(accessedBy[key], txID)
 }
 
-func (accessedBy AccessedBy) TxIds(addr common.Address, hash common.Hash) []int {
-	txIds := make([]int, 0)
-
-	if _, ok := accessedBy[addr]; !ok {
-		return txIds
-	} else if _, ok := accessedBy[addr][hash]; !ok {
-		return txIds
-	} else {
-		for txID := range accessedBy[addr][hash] {
-			txIds = append(txIds, txID)
-		}
-	}
-
+func (accessedBy AccessedBy) TxIds(key string) utils.IDs {
+	txIds := accessedBy[key]
 	sort.Slice(txIds, func(i, j int) bool {
-		return txIds[i] < txIds[j]
+		return (*utils.ID)(txIds[i]).Less((*utils.ID)(txIds[j]))
 	})
 	return txIds
 }
@@ -54,37 +39,16 @@ func NewRwAccessedBy() *RwAccessedBy {
 	}
 }
 
-func (rw *RwAccessedBy) Add(set *RWSet, txId int) {
+func (rw *RwAccessedBy) Add(set *RwSet, txId *utils.ID) {
 	if set == nil {
 		return
 	}
-	for addr, state := range set.ReadSet {
-		for hash := range state {
-			rw.ReadBy.Add(addr, hash, txId)
-		}
-	}
-	for addr, state := range set.WriteSet {
-		for hash := range state {
-			rw.WriteBy.Add(addr, hash, txId)
-		}
-	}
-}
 
-func (rw *RwAccessedBy) Copy() *RwAccessedBy {
-	newRw := NewRwAccessedBy()
-	for addr, hashMap := range rw.ReadBy {
-		for hash, txMap := range hashMap {
-			for txId := range txMap {
-				newRw.ReadBy.Add(addr, hash, txId)
-			}
-		}
+	for key := range set.ReadSet {
+		rw.ReadBy.Add(key, txId)
 	}
-	for addr, hashMap := range rw.WriteBy {
-		for hash, txMap := range hashMap {
-			for txId := range txMap {
-				newRw.WriteBy.Add(addr, hash, txId)
-			}
-		}
+
+	for key := range set.WriteSet {
+		rw.WriteBy.Add(key, txId)
 	}
-	return newRw
 }

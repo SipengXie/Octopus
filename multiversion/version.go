@@ -1,6 +1,7 @@
 package multiversion
 
 import (
+	"blockConcur/utils"
 	"sync"
 )
 
@@ -14,7 +15,7 @@ const (
 
 type Version struct {
 	Data   interface{}
-	Tid    *GlobalId
+	Tid    *utils.ID
 	Status Status
 	Next   *Version
 	Prev   *Version
@@ -29,7 +30,7 @@ type Version struct {
 	Cond *sync.Cond
 }
 
-func NewVersion(data interface{}, tid *GlobalId, status Status) *Version {
+func NewVersion(data interface{}, tid *utils.ID, status Status) *Version {
 	v := &Version{
 		Data:      data,
 		Tid:       tid,
@@ -46,7 +47,7 @@ func NewVersion(data interface{}, tid *GlobalId, status Status) *Version {
 	return v
 }
 
-func (v *Version) InsertOrNext(iv *Version) *Version {
+func (v *Version) insertOrNext(iv *Version) *Version {
 	v.Nlock.Lock()
 	defer v.Nlock.Unlock()
 	if v.Next == nil || v.updatePrev(iv) {
@@ -62,7 +63,7 @@ func (v *Version) InsertOrNext(iv *Version) *Version {
 func (v *Version) updatePrev(iv *Version) bool {
 	v.Plock.Lock()
 	defer v.Plock.Unlock()
-	if iv.Tid.LessThan(v.Tid) {
+	if iv.Tid.Less(v.Tid) {
 		v.Prev = iv
 		return true
 	}
@@ -70,8 +71,23 @@ func (v *Version) updatePrev(iv *Version) bool {
 }
 
 func (v *Version) GetVisible() *Version {
+	if v == nil {
+		return nil
+	}
 	if v.Status != Committed {
 		return v.Prev.GetVisible()
 	}
 	return v
+}
+
+func (v *Version) Settle(status Status, value interface{}) {
+	v.Mu.Lock()
+	v.Status = status
+	v.Data = value
+	v.Mu.Unlock()
+	v.Cond.Broadcast()
+}
+
+func (v *Version) IsSnapshot() bool {
+	return v.Tid == utils.SnapshotID
 }

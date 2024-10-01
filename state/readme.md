@@ -1,0 +1,9 @@
+- 记住execstate的getcommittedstate是从task的readVersion里拿的
+- isValidRead判断的是否可以从其他Tx/snapshot中获取，而不阻止Tx从自己的localwrite中获取
+    - 我们并不关心，一个交易读自己写的东西，因为那会造成一个自边，这是不允许的。他也不影响别人的依赖关系对吧？
+    - 这样的实现，会不会造成不一致? 超出读写集：本来读的地方没有A，只有写A；但我现在又读A，和之前的读写集不一样
+        - 多读一下自己写过的东西会影响什么吗？不会
+    - **is_vaid_read(...)**判断其在input_data || localWrite中
+    - **is_valid_write(...)**判断其在output_data中
+    - readVersions变成input_data
+    - writeVersions变成output_data

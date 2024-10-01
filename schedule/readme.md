@@ -1,0 +1,8 @@
+- 只有scheduler_heuristic是我们真正会在BlkConcur中使用的调度器
+    - heuristic_simple对应blockConcur，load_balancing对应quecc
+    - 我们的scheduler可以优化这些需要DAG调度的算法
+- Processor有两种，一种用上树优化的，一种使用简单list实现的
+    - 树优化的常数比较大，在图规模不大的时候可以考虑使用list
+- Processor_Simple没有实现IBP，只是append就可以, 这是模仿了线程池的操作
+    - 原因是在于基于线程池的DAG是动态分配processor的，会造成长尾效应（等待大交易）
+- schedule_test用于对比blockConcur, queCC和blkConcur的调度能力
