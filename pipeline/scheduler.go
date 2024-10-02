@@ -26,16 +26,16 @@ func NewScheduler(numWorker int, useTree bool, wg *sync.WaitGroup, in chan *Grap
 	}
 }
 
-func Schedule(graph *dag.Graph, useTree bool, numWorker int) (int64, schedule.Processors, uint64, schedule.Method) {
+func Schedule(graph *dag.Graph, useTree bool, numWorker int) (float64, schedule.Processors, uint64, schedule.Method) {
 	st := time.Now()
 	scheduleAgg := schedule.NewScheduleAggregator(graph, useTree, numWorker)
 	processors, makespan, method := scheduleAgg.Schedule()
-	cost := time.Since(st).Milliseconds()
+	cost := time.Since(st).Seconds()
 	return cost, processors, makespan, method
 }
 
 func (s *Scheduler) Run() {
-	var elapsed int64
+	var elapsed float64
 	for input := range s.InputChan {
 		// fmt.Println("Scheduler")
 		if input.Flag == END {

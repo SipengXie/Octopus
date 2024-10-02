@@ -24,7 +24,7 @@ func NewGraphBuilder(wg *sync.WaitGroup, in chan *BuildGraphMessage, out chan *G
 	}
 }
 
-func GenerateGraph(tasks types.Tasks, rwAccessedBy *rwset.RwAccessedBy) (int64, *dag.Graph) {
+func GenerateGraph(tasks types.Tasks, rwAccessedBy *rwset.RwAccessedBy) (float64, *dag.Graph) {
 	st := time.Now()
 	graph := dag.NewGraph()
 	readBy := rwAccessedBy.ReadBy
@@ -78,12 +78,12 @@ func GenerateGraph(tasks types.Tasks, rwAccessedBy *rwset.RwAccessedBy) (int64, 
 	}
 	graph.GenerateVirtualVertex()
 	graph.GenerateProperties()
-	cost := time.Since(st).Milliseconds()
+	cost := time.Since(st).Seconds()
 	return cost, graph
 }
 
 func (g *GraphBuilder) Run() {
-	var elapsed int64
+	var elapsed float64
 	for input := range g.InputChan {
 		if input.Flag == END {
 			outMessage := &GraphMessage{

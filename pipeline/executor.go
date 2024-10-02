@@ -4,7 +4,6 @@ import (
 	"blockConcur/eutils"
 	"blockConcur/schedule"
 	"blockConcur/state"
-	execstate "blockConcur/state"
 	"fmt"
 	"sync"
 	"time"
@@ -39,11 +38,11 @@ func NewExecutor(headers []*types.Header, header *types.Header,
 	}
 }
 
-func Execute(processors schedule.Processors, header *types.Header, headers []*types.Header, chainCfg *chain.Config, early_abort bool, mvCache *state.MvCache) (int64, uint64) {
+func Execute(processors schedule.Processors, header *types.Header, headers []*types.Header, chainCfg *chain.Config, early_abort bool, mvCache *state.MvCache) (float64, uint64) {
 	var wg sync.WaitGroup
 	for _, processor := range processors {
 		ctx := eutils.NewExecContext(header, headers, chainCfg, early_abort)
-		ctx.ExecState = execstate.NewForRun(mvCache, header.Coinbase, early_abort)
+		ctx.ExecState = state.NewForRun(mvCache, header.Coinbase, early_abort)
 		processor.SetExecCtx(ctx, &wg)
 	}
 	st := time.Now()
@@ -53,7 +52,7 @@ func Execute(processors schedule.Processors, header *types.Header, headers []*ty
 	}
 	wg.Wait()
 	mvCache.GarbageCollection()
-	cost := time.Since(st).Milliseconds()
+	cost := time.Since(st).Seconds()
 	totalGas := uint64(0)
 	for _, processor := range processors {
 		totalGas += processor.GetGas()
@@ -63,12 +62,12 @@ func Execute(processors schedule.Processors, header *types.Header, headers []*ty
 }
 
 func (e *Executor) Run() {
-	var elapsed int64
+	var elapsed float64
 	for input := range e.inputChan {
 		// fmt.Println("Executor")
 		if input.Flag == END {
 			e.wg.Done()
-			fmt.Println("Concurrent Execution Cost:", elapsed, "ms")
+			fmt.Println("Concurrent Execution Cost:", elapsed, "s")
 			return
 		}
 		// all processors share one MVCache

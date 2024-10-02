@@ -100,7 +100,7 @@ func NewPrefetcher(cache *state.MvCache, wg *sync.WaitGroup, fetchPoolSize, ivPo
 	}
 }
 
-func Prefetch(tasks types.Tasks, fetchPool, ivPool *ants.PoolWithFunc) (int64, *rwset.RwAccessedBy) {
+func Prefetch(tasks types.Tasks, fetchPool, ivPool *ants.PoolWithFunc) (float64, *rwset.RwAccessedBy) {
 	// TODO: This two function could be merged...
 	rwAccessedBy := GenerateAccessedBy(tasks)
 	// Parallel prefetch the keys in rwAccessedBy's readBy map
@@ -111,7 +111,7 @@ func Prefetch(tasks types.Tasks, fetchPool, ivPool *ants.PoolWithFunc) (int64, *
 		fetchPool.Invoke(&keyAndWg{key: key, wg: &wg})
 	}
 	wg.Wait()
-	cost := time.Since(st).Milliseconds()
+	cost := time.Since(st).Seconds()
 
 	// Parallel add initial read/write versions to the tasks
 	for _, task := range tasks {
@@ -123,7 +123,7 @@ func Prefetch(tasks types.Tasks, fetchPool, ivPool *ants.PoolWithFunc) (int64, *
 }
 
 func (g *Prefetcher) Run() {
-	var elapsed int64
+	var elapsed float64
 	for input := range g.InputChan {
 
 		if input.Flag == END {

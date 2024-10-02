@@ -24,19 +24,19 @@ func TestSingleBlock(t *testing.T) {
 		tasks := helper.GenerateAccurateRwSets(block.Transactions(), header, env.Headers, ibs_bak, convertNum)
 
 		cost_prefetch, rwAccessedBy := pipeline.Prefetch(tasks, fetchPool, ivPool)
-		fmt.Printf("BlockNum: %d, Fetch Cost: %d ms\n", blockNum, cost_prefetch)
+		fmt.Printf("BlockNum: %d, Fetch Cost: %.2f ms\n", blockNum, cost_prefetch*1000)
 		cost_graph, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)
-		fmt.Printf("BlockNum: %d, Graph Cost: %d ms\n", blockNum, cost_graph)
+		fmt.Printf("BlockNum: %d, Graph Cost: %.2f ms\n", blockNum, cost_graph*1000)
 		cost_schedule, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum)
-		fmt.Printf("BlockNum: %d, Schedule Cost: %d ms\n", blockNum, cost_schedule)
+		fmt.Printf("BlockNum: %d, Schedule Cost: %.2f ms\n", blockNum, cost_schedule*1000)
 		cost_execute, gas := pipeline.Execute(processors, header, env.Headers, env.Cfg, early_abort, mvCache)
-		fmt.Printf("BlockNum: %d, Execute Cost: %d ms\n", blockNum, cost_execute)
+		fmt.Printf("BlockNum: %d, Execute Cost: %.2f ms\n", blockNum, cost_execute*1000)
 
 		totalTime := cost_prefetch + cost_graph + cost_schedule + cost_execute
-		tps := float64(len(tasks)) / (float64(totalTime) / 1000)
-		gps := float64(gas) / (float64(totalTime) / 1000)
-		itps := float64(len(tasks)) / (float64(cost_execute) / 1000)
-		igps := float64(gas) / (float64(cost_execute) / 1000)
+		tps := float64(len(tasks)) / (float64(totalTime))
+		gps := float64(gas) / (float64(totalTime))
+		itps := float64(len(tasks)) / (float64(cost_execute))
+		igps := float64(gas) / (float64(cost_execute))
 		fmt.Printf("BlockNum: %d, TPS: %.2f, GPS: %.2f, ITPS: %.2f, IGPS: %.2f\n", blockNum, tps, gps, itps, igps)
 	}
 }
