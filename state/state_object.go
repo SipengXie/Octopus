@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package innerstate
+package state
 
 import (
 	"bytes"
@@ -27,14 +27,12 @@ import (
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 
 	"github.com/ledgerwatch/erigon/core/types/accounts"
-	"github.com/ledgerwatch/erigon/crypto"
 	"github.com/ledgerwatch/erigon/rlp"
 	"github.com/ledgerwatch/erigon/turbo/trie"
 
 	state2 "github.com/ledgerwatch/erigon/core/state"
 )
 
-var emptyCodeHash = crypto.Keccak256(nil)
 var emptyCodeHashH = libcommon.BytesToHash(emptyCodeHash)
 
 type Code []byte

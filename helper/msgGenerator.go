@@ -11,7 +11,7 @@ import (
 	"github.com/panjf2000/ants/v2"
 )
 
-func TransferTxToTasks(txs types2.Transactions, header *types2.Header, thread_num int) []*types.Task {
+func ConvertTxToTasks(txs types2.Transactions, header *types2.Header, thread_num int) []*types.Task {
 
 	// parallel generate messages
 	cfg := params.MainnetChainConfig

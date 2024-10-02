@@ -1,9 +1,7 @@
-package execstate
+package state
 
 import (
-	mv "blockConcur/multiversion"
 	"blockConcur/rwset"
-	innerstate "blockConcur/state/inner_state"
 	"blockConcur/types"
 	"blockConcur/utils"
 	"bytes"
@@ -17,16 +15,28 @@ import (
 	"github.com/ledgerwatch/erigon/crypto"
 )
 
-// TODO: is_valid_read, is_valid_write
-// This state is used for every processor
-// the underlying state is shared between processors, multi_version
-// also need a prize that is shared among processors,
-// and the prize is only modifed after the transaction is committed
+type ColdState interface {
+	Abort()
+	Commit(lw *localWrite, coinbase common.Address, TxIdx *utils.ID)
+	Empty(addr common.Address) bool
+	Exist(addr common.Address) bool
+	GetBalance(addr common.Address) *uint256.Int
+	GetCode(addr common.Address) []byte
+	GetCodeHash(addr common.Address) common.Hash
+	GetCodeSize(addr common.Address) int
+	GetState(addr common.Address, key *common.Hash, value *uint256.Int)
+	GetNonce(addr common.Address) uint64
+	GetPrize(TxIdx *utils.ID) *uint256.Int
+	HasSelfdestructed(addr common.Address) bool
+	SetPrizeKey(coinbase common.Address)
+	SetTask(task *types.Task)
+}
+
 type ExecState struct {
 	// A shared state for the paralle execution of a block
 	// Can be concurrently read by multiple goroutines
 	// but should not be written to concurrently
-	ColdData    *ExecColdState
+	ColdData    ColdState
 	LocalWriter *localWrite
 	lwSnapshot  *localWrite
 
@@ -45,10 +55,9 @@ type ExecState struct {
 	can_commit  bool
 }
 
-func NewExecStateFromIBS(ibs *innerstate.IntraBlockState, coinbase common.Address, early_abort bool, cacheSize int) *ExecState {
-	coldData := NewExecColdState(mv.NewMvCache(ibs, cacheSize))
+func NewForRwSetGen(ibs *IntraBlockState, coinbase common.Address, early_abort bool, cacheSize int) *ExecState {
 	return &ExecState{
-		ColdData:    coldData,
+		ColdData:    ibs,
 		LocalWriter: newLocalWrite(),
 		lwSnapshot:  nil,
 		NewRwSet:    nil,
@@ -60,9 +69,11 @@ func NewExecStateFromIBS(ibs *innerstate.IntraBlockState, coinbase common.Addres
 	}
 }
 
-func NewExecStateFromMVCache(mvCache *mv.MvCache, coinbase common.Address, early_abort bool) *ExecState {
+func NewForRun(mvCache *MvCache, coinbase common.Address, early_abort bool) *ExecState {
+	coldData := NewExecColdState(mvCache)
+	coldData.SetPrizeKey(coinbase)
 	return &ExecState{
-		ColdData:    NewExecColdState(mvCache),
+		ColdData:    coldData,
 		LocalWriter: newLocalWrite(),
 		lwSnapshot:  nil,
 		NewRwSet:    nil,
@@ -81,10 +92,10 @@ func (s *ExecState) is_valid_read(addr common.Address, slot common.Hash) {
 	}
 	ok := s.OldRwSet.ReadSet.Contains(addr, slot)
 	if !ok {
+		s.can_commit = false
 		if s.early_abort {
 			panic(fmt.Sprintf("invalid read: %s %s", addr.Hex(), utils.DecodeHash(slot)))
 		}
-		s.can_commit = false
 	}
 }
 
@@ -95,11 +106,16 @@ func (s *ExecState) is_valid_write(addr common.Address, slot common.Hash) {
 	}
 	ok := s.OldRwSet.WriteSet.Contains(addr, slot)
 	if !ok {
+		s.can_commit = false
 		if s.early_abort {
 			panic(fmt.Sprintf("invalid write: %s %s", addr.Hex(), utils.DecodeHash(slot)))
 		}
-		s.can_commit = false
 	}
+}
+
+func (s *ExecState) SetCoinbase(coinbase common.Address) {
+	s.Coinbase = coinbase
+	s.ColdData.SetPrizeKey(coinbase)
 }
 
 func (s *ExecState) SetTxContext(task *types.Task, newRwSet *rwset.RwSet) {
@@ -109,6 +125,7 @@ func (s *ExecState) SetTxContext(task *types.Task, newRwSet *rwset.RwSet) {
 	s.globalIdx = task.Tid
 	s.OldRwSet = task.RwSet
 	s.NewRwSet = newRwSet
+	s.can_commit = true
 	s.ColdData.SetTask(task)
 }
 
@@ -133,8 +150,9 @@ func (s *ExecState) AddBalance(addr common.Address, amount *uint256.Int) {
 }
 
 func (s *ExecState) SetBalance(addr common.Address, amount *uint256.Int) {
-	s.LocalWriter.setBalance(addr, amount)
+	s.is_valid_write(addr, utils.BALANCE)
 	s.NewRwSet.AddWriteSet(addr, utils.BALANCE)
+	s.LocalWriter.setBalance(addr, amount)
 }
 
 func (s *ExecState) GetBalance(addr common.Address) *uint256.Int {
@@ -172,32 +190,32 @@ func (s *ExecState) SetNonce(addr common.Address, nonce uint64) {
 }
 
 func (s *ExecState) GetCodeHash(addr common.Address) common.Hash {
-
+	s.is_valid_read(addr, utils.CODEHASH)
+	s.NewRwSet.AddReadSet(addr, utils.CODEHASH)
 	codeHash, ok := s.LocalWriter.getCodeHash(addr)
 	if !ok {
 		codeHash = s.ColdData.GetCodeHash(addr)
 	}
-	s.NewRwSet.AddReadSet(addr, utils.CODEHASH)
 	return codeHash
 }
 
 func (s *ExecState) GetCode(addr common.Address) []byte {
 	s.is_valid_read(addr, utils.CODE)
+	s.NewRwSet.AddReadSet(addr, utils.CODEHASH)
+	s.NewRwSet.AddReadSet(addr, utils.CODE)
 	code, ok := s.LocalWriter.getCode(addr)
 	if !ok {
 		code = s.ColdData.GetCode(addr)
 	}
-	s.NewRwSet.AddReadSet(addr, utils.CODEHASH)
-	s.NewRwSet.AddReadSet(addr, utils.CODE)
 	return code
 }
 
 func (s *ExecState) SetCode(addr common.Address, code []byte) {
 	s.is_valid_write(addr, utils.CODE)
-	s.LocalWriter.setCode(addr, code)
-	s.LocalWriter.setCodeHash(addr, crypto.Keccak256Hash(code))
 	s.NewRwSet.AddWriteSet(addr, utils.CODE)
 	s.NewRwSet.AddWriteSet(addr, utils.CODEHASH)
+	s.LocalWriter.setCode(addr, code)
+	s.LocalWriter.setCodeHash(addr, crypto.Keccak256Hash(code))
 }
 
 func (s *ExecState) GetCodeSize(addr common.Address) int {
@@ -223,7 +241,7 @@ func (s *ExecState) GetRefund() uint64 {
 func (s *ExecState) GetCommittedState(addr common.Address, slot *common.Hash, outValue *uint256.Int) {
 	s.is_valid_read(addr, *slot)
 	s.NewRwSet.AddReadSet(addr, *slot)
-	s.ColdData.GetCommittedState(addr, slot, outValue)
+	s.ColdData.GetState(addr, slot, outValue)
 }
 
 func (s *ExecState) GetState(addr common.Address, slot *common.Hash, outValue *uint256.Int) {
@@ -240,7 +258,7 @@ func (s *ExecState) GetState(addr common.Address, slot *common.Hash, outValue *u
 func (s *ExecState) SetState(addr common.Address, slot *common.Hash, value uint256.Int) {
 	s.is_valid_write(addr, *slot)
 	s.NewRwSet.AddWriteSet(addr, *slot)
-	s.LocalWriter.setSlot(addr, *slot, value)
+	s.LocalWriter.setSlot(addr, *slot, &value)
 }
 
 func (s *ExecState) GetTransientState(addr common.Address, key common.Hash) uint256.Int {
@@ -377,5 +395,10 @@ func (s *ExecState) GetPrize() *uint256.Int {
 
 // This function is called after the transaction is executed
 func (s *ExecState) Commit() {
-	s.ColdData.Commit(s.LocalWriter, s.Coinbase, s.globalIdx)
+	if s.can_commit {
+		s.ColdData.Commit(s.LocalWriter, s.Coinbase, s.globalIdx)
+	} else {
+		fmt.Println("CannotCommit", s.globalIdx)
+		s.ColdData.Abort()
+	}
 }

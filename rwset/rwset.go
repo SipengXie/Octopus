@@ -24,6 +24,25 @@ func (tuple accessMap) Contains(addr common.Address, hash common.Hash) bool {
 	return ok
 }
 
+func (tuple accessMap) Print() {
+	output := make(map[string][]string)
+	for key := range tuple {
+		addr, hash := utils.ParseKey(key)
+		if list, ok := output[addr.Hex()]; !ok {
+			output[addr.Hex()] = []string{utils.DecodeHash(hash)}
+		} else {
+			list = append(list, utils.DecodeHash(hash))
+			output[addr.Hex()] = list
+		}
+	}
+	for addr, hashList := range output {
+		fmt.Printf("\t%s:\n", addr)
+		for _, hash := range hashList {
+			fmt.Printf("\t\t%s\n", hash)
+		}
+	}
+}
+
 type RwSet struct {
 	ReadSet  accessMap
 	WriteSet accessMap

@@ -2,8 +2,9 @@ package pipeline
 
 import (
 	"blockConcur/eutils"
-	mv "blockConcur/multiversion"
-	execstate "blockConcur/state/exec_state"
+	"blockConcur/schedule"
+	"blockConcur/state"
+	execstate "blockConcur/state"
 	"fmt"
 	"sync"
 	"time"
@@ -13,17 +14,18 @@ import (
 )
 
 type Executor struct {
+	totalGas    uint64
 	headers     []*types.Header
 	header      *types.Header
 	chainCfg    *chain.Config
-	mvCache     *mv.MvCache
+	mvCache     *state.MvCache
 	early_abort bool
 	wg          *sync.WaitGroup
 	inputChan   chan *ScheduleMessage
 }
 
 func NewExecutor(headers []*types.Header, header *types.Header,
-	mvCache *mv.MvCache, chainCfg *chain.Config,
+	mvCache *state.MvCache, chainCfg *chain.Config,
 	early_abort bool, wg *sync.WaitGroup,
 	in chan *ScheduleMessage) *Executor {
 	return &Executor{
@@ -35,6 +37,29 @@ func NewExecutor(headers []*types.Header, header *types.Header,
 		inputChan:   in,
 		wg:          wg,
 	}
+}
+
+func Execute(processors schedule.Processors, header *types.Header, headers []*types.Header, chainCfg *chain.Config, early_abort bool, mvCache *state.MvCache) (int64, uint64) {
+	var wg sync.WaitGroup
+	for _, processor := range processors {
+		ctx := eutils.NewExecContext(header, headers, chainCfg, early_abort)
+		ctx.ExecState = execstate.NewForRun(mvCache, header.Coinbase, early_abort)
+		processor.SetExecCtx(ctx, &wg)
+	}
+	st := time.Now()
+	for _, processor := range processors {
+		wg.Add(1)
+		go processor.Execute()
+	}
+	wg.Wait()
+	mvCache.GarbageCollection()
+	cost := time.Since(st).Milliseconds()
+	totalGas := uint64(0)
+	for _, processor := range processors {
+		totalGas += processor.GetGas()
+	}
+
+	return cost, totalGas
 }
 
 func (e *Executor) Run() {
@@ -50,21 +75,10 @@ func (e *Executor) Run() {
 		// each processor has its own cold state & exec state
 		// the is a proxy to the task's read/write version
 		// while the exec state maintains the localwrite
-		processors := input.Processors
 		// init execCtx for each processor
-		var wg sync.WaitGroup
-		for _, processor := range processors {
-			ctx := eutils.NewExecContext(e.header, e.headers, e.chainCfg, e.early_abort)
-			ctx.ExecState = execstate.NewExecStateFromMVCache(e.mvCache, e.header.Coinbase, e.early_abort)
-			processor.SetExecCtx(ctx, &wg)
-		}
-
-		st := time.Now()
-		for _, processor := range processors {
-			wg.Add(1)
-			go processor.Execute()
-		}
-		wg.Wait()
-		elapsed += time.Since(st).Milliseconds()
+		processors := input.Processors
+		cost, gas := Execute(processors, e.header, e.headers, e.chainCfg, e.early_abort, e.mvCache)
+		elapsed += cost
+		e.totalGas += gas
 	}
 }

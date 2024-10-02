@@ -1,4 +1,4 @@
-package execstate
+package state
 
 import (
 	"blockConcur/utils"
@@ -78,8 +78,8 @@ func (lw *localWrite) getSlot(addr common.Address, hash common.Hash) (*uint256.I
 		return nil, false
 	}
 	if val, ok := lw.storage[addr][hash]; ok {
-		ret := val.(uint256.Int)
-		return &ret, true
+		ret := val.(*uint256.Int)
+		return ret, true
 	}
 	return nil, false
 }
@@ -149,7 +149,7 @@ func (lw *localWrite) setCodeHash(addr common.Address, codeHash common.Hash) {
 	lw.storage[addr][utils.CODEHASH] = codeHash
 }
 
-func (lw *localWrite) setSlot(addr common.Address, hash common.Hash, slot uint256.Int) {
+func (lw *localWrite) setSlot(addr common.Address, hash common.Hash, slot *uint256.Int) {
 	if _, ok := lw.storage[addr]; !ok {
 		lw.storage[addr] = make(map[common.Hash]interface{})
 	}
@@ -164,6 +164,9 @@ func (lw *localWrite) setTxContext(thash, bhash common.Hash, txIndex int) {
 
 func (lw *localWrite) delete(addr common.Address) {
 	lw.setBalance(addr, uint256.NewInt(0))
+	if _, ok := lw.storage[addr]; !ok {
+		lw.storage[addr] = make(map[common.Hash]interface{})
+	}
 	lw.storage[addr][utils.EXIST] = false
 }
 
@@ -195,6 +198,9 @@ func (lw *localWrite) addPrize(amount *uint256.Int) {
 // A functional procedure
 
 func (lw *localWrite) createAccount(addr common.Address, _ bool) {
+	if _, ok := lw.storage[addr]; !ok {
+		lw.storage[addr] = make(map[common.Hash]interface{})
+	}
 	lw.storage[addr][utils.EXIST] = true
 }
 

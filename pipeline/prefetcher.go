@@ -3,6 +3,7 @@ package pipeline
 import (
 	mv "blockConcur/multiversion"
 	"blockConcur/rwset"
+	"blockConcur/state"
 	"blockConcur/types"
 	"blockConcur/utils"
 	"fmt"
@@ -20,9 +21,9 @@ func GenerateAccessedBy(tasks []*types.Task) *rwset.RwAccessedBy {
 	return rwAccessedBy
 }
 
-// Prefetch fetch the corresponding data to the cache, and generate the accessedBy map.
-type Prefetch struct {
-	cache      *mv.MvCache
+// Prefetcher fetch the corresponding data to the cache, and generate the accessedBy map.
+type Prefetcher struct {
+	cache      *state.MvCache
 	FetchPool  *ants.PoolWithFunc
 	IVPool     *ants.PoolWithFunc
 	Wg         *sync.WaitGroup
@@ -40,10 +41,10 @@ type taskAndWg struct {
 	wg   *sync.WaitGroup
 }
 
-func NewPrefetch(cache *mv.MvCache, wg *sync.WaitGroup, worker_num int, in chan *TaskMessage, out chan *BuildGraphMessage) *Prefetch {
+func GeneratePools(cache *state.MvCache, fetchPoolSize, ivPoolSize int) (fetchPool, ivPool *ants.PoolWithFunc) {
 	// generate a prefetch fetchPool, each thread prefetch one task.
 	// Fetch the read_set of the task into cache.
-	fetchPool, err := ants.NewPoolWithFunc(worker_num, func(i interface{}) {
+	fetchPool, err := ants.NewPoolWithFunc(fetchPoolSize, func(i interface{}) {
 		// i is a struct of key and waitGroup
 		taskAndWg := i.(*keyAndWg)
 		key := taskAndWg.key
@@ -54,22 +55,22 @@ func NewPrefetch(cache *mv.MvCache, wg *sync.WaitGroup, worker_num int, in chan 
 	if err != nil {
 		panic(err)
 	}
-
 	// generate a task handling pool, adding inital read versions to the task.
 	// generate the initial write versions, and install them to the cache.
-	ivPool, err := ants.NewPoolWithFunc(worker_num, func(i interface{}) {
+	ivPool, err = ants.NewPoolWithFunc(ivPoolSize, func(i interface{}) {
 		taskAndWg := i.(*taskAndWg)
 		task := taskAndWg.task
 		wg := taskAndWg.wg
 		defer wg.Done()
 		// adding task.rwset.read_set to task.ReadVersions
 		for key := range task.RwSet.ReadSet {
-			// TODO: if we change this version to the last block's last version,
+			// TODO: if we change this version to the last block's last inserted version,
 			// we could achieve inter-block concurrency control. However, we have
 			// two problems:
 			// (1) the block root generation problem.
 			// (2) prefetch_1 -> graph_1 -> prefetch_2 -> graph_2, the prefetch_2 should
-			// happen after graph_1.
+			// happen after graph_1. This problem does not exist as prefetch_2 is happend after prefetch_1.
+			// The MVCache contains all versions generated in the previous block.
 			// Now, no need for inter-block concurrency.
 			v := cache.GetCommittedVersion(key)
 			task.AddReadVersion(key, v)
@@ -84,8 +85,12 @@ func NewPrefetch(cache *mv.MvCache, wg *sync.WaitGroup, worker_num int, in chan 
 	if err != nil {
 		panic(err)
 	}
+	return
+}
 
-	return &Prefetch{
+func NewPrefetcher(cache *state.MvCache, wg *sync.WaitGroup, fetchPoolSize, ivPoolSize int, in chan *TaskMessage, out chan *BuildGraphMessage) *Prefetcher {
+	fetchPool, ivPool := GeneratePools(cache, fetchPoolSize, ivPoolSize)
+	return &Prefetcher{
 		cache:      cache,
 		FetchPool:  fetchPool,
 		IVPool:     ivPool,
@@ -95,7 +100,29 @@ func NewPrefetch(cache *mv.MvCache, wg *sync.WaitGroup, worker_num int, in chan 
 	}
 }
 
-func (g *Prefetch) Run() {
+func Prefetch(tasks types.Tasks, fetchPool, ivPool *ants.PoolWithFunc) (int64, *rwset.RwAccessedBy) {
+	// TODO: This two function could be merged...
+	rwAccessedBy := GenerateAccessedBy(tasks)
+	// Parallel prefetch the keys in rwAccessedBy's readBy map
+	st := time.Now()
+	var wg sync.WaitGroup
+	for key := range rwAccessedBy.ReadBy {
+		wg.Add(1)
+		fetchPool.Invoke(&keyAndWg{key: key, wg: &wg})
+	}
+	wg.Wait()
+	cost := time.Since(st).Milliseconds()
+
+	// Parallel add initial read/write versions to the tasks
+	for _, task := range tasks {
+		wg.Add(1)
+		ivPool.Invoke(&taskAndWg{task: task, wg: &wg})
+	}
+	wg.Wait()
+	return cost, rwAccessedBy
+}
+
+func (g *Prefetcher) Run() {
 	var elapsed int64
 	for input := range g.InputChan {
 
@@ -112,26 +139,9 @@ func (g *Prefetch) Run() {
 		}
 
 		tasks := input.Tasks
-		// TODO: This two function could be merged...
-		rwAccessedBy := GenerateAccessedBy(tasks)
 
-		// Parallel prefetch the keys in rwAccessedBy's readBy map
-		st := time.Now()
-		var wg sync.WaitGroup
-		for key := range rwAccessedBy.ReadBy {
-			wg.Add(1)
-			g.FetchPool.Invoke(&keyAndWg{key: key, wg: &wg})
-		}
-		wg.Wait()
-		since := time.Since(st)
-		elapsed += since.Milliseconds()
-
-		// Parallel add initial read/write versions to the tasks
-		for _, task := range tasks {
-			wg.Add(1)
-			g.IVPool.Invoke(&taskAndWg{task: task, wg: &wg})
-		}
-		wg.Wait()
+		cost, rwAccessedBy := Prefetch(tasks, g.FetchPool, g.IVPool)
+		elapsed += cost
 
 		outMessage := &BuildGraphMessage{
 			Flag:         START,

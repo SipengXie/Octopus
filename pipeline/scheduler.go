@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	dag "blockConcur/graph"
 	"blockConcur/schedule"
 	"fmt"
 	"sync"
@@ -25,6 +26,14 @@ func NewScheduler(numWorker int, useTree bool, wg *sync.WaitGroup, in chan *Grap
 	}
 }
 
+func Schedule(graph *dag.Graph, useTree bool, numWorker int) (int64, schedule.Processors, uint64, schedule.Method) {
+	st := time.Now()
+	scheduleAgg := schedule.NewScheduleAggregator(graph, useTree, numWorker)
+	processors, makespan, method := scheduleAgg.Schedule()
+	cost := time.Since(st).Milliseconds()
+	return cost, processors, makespan, method
+}
+
 func (s *Scheduler) Run() {
 	var elapsed int64
 	for input := range s.InputChan {
@@ -40,11 +49,8 @@ func (s *Scheduler) Run() {
 			return
 		}
 
-		scheduleAgg := schedule.NewScheduleAggregator(input.Graph, s.UseTree, s.NumWorker)
-		st := time.Now()
-		processors, makespan, _ := scheduleAgg.Schedule()
-		// If in debug mode, we should output the method to analyze which one performs best
-		elapsed += time.Since(st).Milliseconds()
+		cost, processors, makespan, _ := Schedule(input.Graph, s.UseTree, s.NumWorker)
+		elapsed += cost
 		outMessage := &ScheduleMessage{
 			Flag:       START,
 			Processors: processors,

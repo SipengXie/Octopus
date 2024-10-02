@@ -15,7 +15,7 @@
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 // This file is useless for this time.
-package innerstate
+package state
 
 import (
 	"github.com/holiman/uint256"

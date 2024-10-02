@@ -6,8 +6,7 @@ import (
 	"blockConcur/evm/vm"
 	"blockConcur/evm/vm/evmtypes"
 	"blockConcur/rwset"
-	state "blockConcur/state/exec_state"
-	istate "blockConcur/state/inner_state"
+	"blockConcur/state"
 	"blockConcur/types"
 	"fmt"
 
@@ -16,19 +15,18 @@ import (
 )
 
 // Generate Accurate Read-write sets,
-func GenerateAccurateRwSets(txs types2.Transactions, header *types2.Header, headers []*types2.Header, ibs *istate.IntraBlockState, worker_num int) types.Tasks {
+func GenerateAccurateRwSets(txs types2.Transactions, header *types2.Header, headers []*types2.Header, ibs *state.IntraBlockState, worker_num int) types.Tasks {
 	cfg := params.MainnetChainConfig
-	tasks := TransferTxToTasks(txs, header, worker_num)
+	tasks := ConvertTxToTasks(txs, header, worker_num)
 	// used for serial execution
-	execState := state.NewExecStateFromIBS(ibs, header.Coinbase, false, 8192)
 	execCtx := eutils.NewExecContext(header, headers, cfg, false)
+	execState := state.NewForRwSetGen(ibs, header.Coinbase, false, 8192)
+	execCtx.ExecState = execState
 	evm := vm.NewEVM(execCtx.BlockCtx, evmtypes.TxContext{}, execState, execCtx.ChainCfg, vm.Config{})
 	for _, task := range tasks {
-		ctx := core.NewEVMTxContext(task.Msg)
-		ctx.TxHash = task.TxHash
-		evm.TxContext = ctx
 		newRwSet := rwset.NewRwSet()
-		execState.SetTxContext(task, newRwSet)
+		execCtx.SetTask(task, newRwSet)
+		evm.TxContext = execCtx.TxCtx
 		_, err := core.ApplyMessage(evm, task.Msg, new(core.GasPool).AddGas(task.Msg.Gas()).AddBlobGas(task.Msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err != nil {
 			// we have dealt with the coinbase issue
@@ -43,9 +41,9 @@ func GenerateAccurateRwSets(txs types2.Transactions, header *types2.Header, head
 	return tasks
 }
 
-func GeneratePredictRwSets(txs types2.Transactions, header *types2.Header, headers []*types2.Header, ibs *istate.IntraBlockState, worker_num int) types.Tasks {
+func GeneratePredictRwSets(txs types2.Transactions, header *types2.Header, headers []*types2.Header, ibs *state.IntraBlockState, worker_num int) types.Tasks {
 	cfg := params.MainnetChainConfig
-	tasks := TransferTxToTasks(txs, header, worker_num)
+	tasks := ConvertTxToTasks(txs, header, worker_num)
 	output := make(types.Tasks, 0)
 	execCtx := eutils.NewExecContext(header, headers, cfg, false)
 
@@ -54,7 +52,7 @@ func GeneratePredictRwSets(txs types2.Transactions, header *types2.Header, heade
 		ctx := core.NewEVMTxContext(task.Msg)
 		ctx.TxHash = task.TxHash
 
-		execState := state.NewExecStateFromIBS(ibs, header.Coinbase, false, 8192)
+		execState := state.NewForRwSetGen(ibs, header.Coinbase, false, 8192)
 		newRwSet := rwset.NewRwSet()
 		execState.SetTxContext(task, newRwSet)
 

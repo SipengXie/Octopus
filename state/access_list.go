@@ -15,7 +15,7 @@
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 // This file is useless for this time.
-package execstate
+package state
 
 import (
 	"github.com/ledgerwatch/erigon-lib/common"

@@ -1,7 +1,7 @@
 package helper
 
 import (
-	innerstate "blockConcur/state/inner_state"
+	innerstate "blockConcur/state"
 	"context"
 	"sync"
 
@@ -58,8 +58,8 @@ type GloablEnv struct {
 	BlockReader *freezeblocks.BlockReader
 	DB          kv.RoDB
 	Cfg         *chain.Config
-	// 256 header cache, header inside is continous
-	Headers [256]*types.Header
+	// header cache, header inside is continous
+	Headers []*types.Header
 }
 
 func PrepareEnv() GloablEnv {
@@ -79,7 +79,7 @@ func PrepareEnv() GloablEnv {
 		BlockReader: blockReader,
 		DB:          db,
 		Cfg:         params.MainnetChainConfig,
-		Headers:     [256]*types.Header{},
+		Headers:     make([]*types.Header, 256),
 	}
 }
 
@@ -101,6 +101,8 @@ func (g *GloablEnv) GetBlockAndHeader(blockNumber uint64) (*types.Block, *types.
 
 	// fetch corresponding 256 headers in parallel (for simplicity)
 	// decalring dbTxs
+	// TODO: an initial version of header cache generation,
+	// when we merge blocks, we need more headers.
 	dbTxs := make([]kv.Tx, 256)
 	for i := range dbTxs {
 		dbTxs[i], err = g.DB.BeginRo(g.Ctx)
@@ -108,6 +110,11 @@ func (g *GloablEnv) GetBlockAndHeader(blockNumber uint64) (*types.Block, *types.
 			panic(err)
 		}
 	}
+	defer func() {
+		for _, dbTx := range dbTxs {
+			dbTx.Rollback()
+		}
+	}()
 
 	var wg sync.WaitGroup
 	pool, _ := ants.NewPoolWithFunc(256, func(i interface{}) {

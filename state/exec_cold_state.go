@@ -1,4 +1,4 @@
-package execstate
+package state
 
 import (
 	mv "blockConcur/multiversion"
@@ -32,10 +32,10 @@ type ExecColdState struct {
 	// a shared uint256.Int
 	input_predict  *versionMap // some pointers of the inner_state
 	output_predict *versionMap // some pointers of the inner_state, only used in commit_localwrite
-	inner_state    *mv.MvCache // the same level as the exec_cold_states, for data that are not in input and output
+	inner_state    *MvCache    // the same level as the exec_cold_states, for data that are not in input and output
 }
 
-func NewExecColdState(mvc *mv.MvCache) *ExecColdState {
+func NewExecColdState(mvc *MvCache) *ExecColdState {
 	return &ExecColdState{
 		inner_state: mvc,
 	}
@@ -46,7 +46,7 @@ func (s *ExecColdState) SetTask(task *types.Task) {
 	s.output_predict = newVersionMap(task.WriteVersions)
 }
 
-func (s *ExecColdState) SetCoinbase(coinbase common.Address) {
+func (s *ExecColdState) SetPrizeKey(coinbase common.Address) {
 	s.inner_state.SetPrizeKey(coinbase)
 }
 
@@ -126,19 +126,19 @@ func (s *ExecColdState) GetCodeSize(addr common.Address) int {
 	return (len(s.GetCode(addr)))
 }
 
-func (s *ExecColdState) GetCommittedState(addr common.Address, key *common.Hash, value *uint256.Int) {
-	version := s.input_predict.get(addr, *key).GetVisible()
+func (s *ExecColdState) GetState(addr common.Address, hash *common.Hash, value *uint256.Int) {
+	version := s.input_predict.get(addr, *hash).GetVisible()
 	if version == nil {
-		slot, ok := s.inner_state.Fetch(addr, *key).(*uint256.Int)
+		slot, ok := s.inner_state.Fetch(addr, *hash).(*uint256.Int)
 		if !ok {
-			panic("value is not a uint256.Int")
+			panic("value is not a *uint256.Int")
 		}
 		value.Set(slot)
 		return
 	}
 	slot, ok := version.Data.(*uint256.Int)
 	if !ok {
-		panic("slot is not a uint256.Int")
+		panic("slot is not a *uint256.Int")
 	}
 	value.Set(slot)
 }
@@ -182,15 +182,14 @@ func (s *ExecColdState) Commit(lw *localWrite, coinbase common.Address, TxIdx *u
 	pVersion := s.output_predict.get(coinbase, utils.PRIZE)
 	for key, version := range s.output_predict.data {
 		addr, hash := utils.ParseKey(key)
+		if hash == utils.PRIZE {
+			continue
+		}
 		// if the addr & hash is not in the lw, settle the version to ignore
 		value, ok := lw.get(addr, hash)
 		if !ok {
 			version.Settle(mv.Ignore, nil)
 		} else {
-			if hash == utils.PRIZE {
-				// prize should be handled in the end
-				continue
-			}
 			s.inner_state.Update(version, key, value)
 			if hash == utils.BALANCE && addr == coinbase {
 				s.inner_state.PrunePrize(TxIdx)
@@ -198,4 +197,10 @@ func (s *ExecColdState) Commit(lw *localWrite, coinbase common.Address, TxIdx *u
 		}
 	}
 	s.inner_state.Update(pVersion, utils.MakeKey(coinbase, utils.PRIZE), prize)
+}
+
+func (s *ExecColdState) Abort() {
+	for _, version := range s.output_predict.data {
+		version.Settle(mv.Ignore, nil)
+	}
 }

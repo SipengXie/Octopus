@@ -18,6 +18,7 @@ type Processor interface {
 	// TODO: complete the function
 	Execute()
 	SetExecCtx(*eutils.ExecContext, *sync.WaitGroup)
+	GetGas() uint64
 }
 
 type Processors []Processor

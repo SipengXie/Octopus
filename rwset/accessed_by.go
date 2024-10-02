@@ -22,7 +22,7 @@ func (accessedBy AccessedBy) Add(key string, txID *utils.ID) {
 func (accessedBy AccessedBy) TxIds(key string) utils.IDs {
 	txIds := accessedBy[key]
 	sort.Slice(txIds, func(i, j int) bool {
-		return (*utils.ID)(txIds[i]).Less((*utils.ID)(txIds[j]))
+		return (txIds[i]).Less((txIds[j]))
 	})
 	return txIds
 }

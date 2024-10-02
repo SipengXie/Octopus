@@ -14,9 +14,11 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package innerstate
+package state
 
 import (
+	"sync"
+
 	"github.com/holiman/uint256"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 )
@@ -35,14 +37,14 @@ type journalEntry interface {
 // commit. These are tracked to be able to be reverted in case of an execution
 // exception or revertal request.
 type journal struct {
-	entries []journalEntry            // Current changes tracked by the journal
-	dirties map[libcommon.Address]int // Dirty accounts and the number of changes
+	entries []journalEntry // Current changes tracked by the journal
+	dirties sync.Map       // Dirty accounts and the number of changes
 }
 
 // newJournal create a new initialized journal.
 func newJournal() *journal {
 	return &journal{
-		dirties: make(map[libcommon.Address]int),
+		dirties: sync.Map{},
 	}
 }
 
@@ -50,7 +52,8 @@ func newJournal() *journal {
 func (j *journal) append(entry journalEntry) {
 	j.entries = append(j.entries, entry)
 	if addr := entry.dirtied(); addr != nil {
-		j.dirties[*addr]++
+		count, _ := j.dirties.LoadOrStore(*addr, 0)
+		j.dirties.Store(*addr, count.(int)+1)
 	}
 }
 
@@ -63,8 +66,11 @@ func (j *journal) revert(statedb *IntraBlockState, snapshot int) {
 
 		// Drop any dirty tracking induced by the change
 		if addr := j.entries[i].dirtied(); addr != nil {
-			if j.dirties[*addr]--; j.dirties[*addr] == 0 {
-				delete(j.dirties, *addr)
+			count, _ := j.dirties.Load(*addr)
+			if count.(int) == 1 {
+				j.dirties.Delete(*addr)
+			} else {
+				j.dirties.Store(*addr, count.(int)-1)
 			}
 		}
 	}
@@ -75,7 +81,8 @@ func (j *journal) revert(statedb *IntraBlockState, snapshot int) {
 // otherwise suggest it as clean. This method is an ugly hack to handle the RIPEMD
 // precompile consensus exception.
 func (j *journal) dirty(addr libcommon.Address) {
-	j.dirties[addr]++
+	count, _ := j.dirties.LoadOrStore(addr, 0)
+	j.dirties.Store(addr, count.(int)+1)
 }
 
 // length returns the current number of entries in the journal.

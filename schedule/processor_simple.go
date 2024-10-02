@@ -55,3 +55,7 @@ func (p *ProcessorSimple) AddTask(tw *TaskWrapper, eftResult eftResult) {
 }
 
 func (p *ProcessorSimple) Execute() {}
+
+func (p *ProcessorSimple) GetGas() uint64 {
+	return 0
+}

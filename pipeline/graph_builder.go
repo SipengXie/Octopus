@@ -24,7 +24,8 @@ func NewGraphBuilder(wg *sync.WaitGroup, in chan *BuildGraphMessage, out chan *G
 	}
 }
 
-func GenerateGraph(tasks types.Tasks, rwAccessedBy *rwset.RwAccessedBy) *dag.Graph {
+func GenerateGraph(tasks types.Tasks, rwAccessedBy *rwset.RwAccessedBy) (int64, *dag.Graph) {
+	st := time.Now()
 	graph := dag.NewGraph()
 	readBy := rwAccessedBy.ReadBy
 	writeBy := rwAccessedBy.WriteBy
@@ -37,8 +38,10 @@ func GenerateGraph(tasks types.Tasks, rwAccessedBy *rwset.RwAccessedBy) *dag.Gra
 		// get sorted txIds
 		rTasks := readBy.TxIds(key)
 		wTasks := writeBy.TxIds(key)
+		if len(wTasks) == 0 {
+			continue
+		}
 		_, hash := utils.ParseKey(key)
-
 		if hash == utils.PRIZE {
 			// The reason for adding all edges is that we consider concurrency optimization for PRIZE.
 			// PRIZE read is dependent for all previous write tasks.
@@ -56,12 +59,15 @@ func GenerateGraph(tasks types.Tasks, rwAccessedBy *rwset.RwAccessedBy) *dag.Gra
 			// because the task will only read the latest data.
 			for _, rID := range rTasks {
 				idx, ok := wTasks.Find(rID)
+				if ok {
+					idx--
+				}
+				if idx < 0 {
+					continue
+				}
 				pvwID := wTasks[idx]
 				// if ok, it means wTasks[idx] = rTaskID, so we need the previous write task.
 				// However, the idx should not be 0.
-				if ok && idx != 0 {
-					pvwID = wTasks[idx-1]
-				}
 				// add edge from the previous write task to the read task, and change the task's read version to the previous write version
 				graph.AddEdge(pvwID, rID)
 				rNode := graph.Vertices[rID]
@@ -72,7 +78,8 @@ func GenerateGraph(tasks types.Tasks, rwAccessedBy *rwset.RwAccessedBy) *dag.Gra
 	}
 	graph.GenerateVirtualVertex()
 	graph.GenerateProperties()
-	return graph
+	cost := time.Since(st).Milliseconds()
+	return cost, graph
 }
 
 func (g *GraphBuilder) Run() {
@@ -89,9 +96,8 @@ func (g *GraphBuilder) Run() {
 			return
 		}
 
-		st := time.Now()
-		graph := GenerateGraph(input.Tasks, input.RwAccessedBy)
-		elapsed += time.Since(st).Milliseconds()
+		cost, graph := GenerateGraph(input.Tasks, input.RwAccessedBy)
+		elapsed += cost
 
 		outMessage := &GraphMessage{
 			Flag:  START,

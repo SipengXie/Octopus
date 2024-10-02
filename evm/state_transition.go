@@ -182,12 +182,12 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 // `gasBailout` is true when it is not required to fail transaction if the balance is not enough to pay gas.
 // for trace_call to replicate OE/Parity behaviour
 func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, refunds bool, gasBailout bool) (result *ExecutionResult, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			result = nil
-			err = fmt.Errorf("panic occurred: %v", r)
-		}
-	}()
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		result = nil
+	// 		err = fmt.Errorf("panic occurred: %v", r)
+	// 	}
+	// }()
 	return NewStateTransition(evm, msg, gp).TransitionDb(refunds, gasBailout)
 }
 

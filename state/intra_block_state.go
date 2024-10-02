@@ -15,12 +15,15 @@
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 // Package state provides a caching layer atop the Ethereum state trie.
-package innerstate
+package state
 
 import (
+	"blockConcur/utils"
 	"fmt"
 	"sort"
 	"sync"
+
+	types3 "blockConcur/types"
 
 	"github.com/holiman/uint256"
 
@@ -160,7 +163,7 @@ type IntraBlockState struct {
 
 	// coinbase prize
 	// need to be stored at a shared state
-	// prize *uint256.Int
+	prize *uint256.Int
 }
 
 // Create a new state from a given trie
@@ -176,7 +179,7 @@ func New(stateReader state2.StateReader) *IntraBlockState {
 		accessList:        newAccessList(),
 		transientStorage:  newTransientStorage(),
 		balanceInc:        map[libcommon.Address]*BalanceIncrease{},
-		// prize:             new(uint256.Int),
+		prize:             new(uint256.Int),
 	}
 }
 
@@ -382,21 +385,21 @@ func (sdb *IntraBlockState) HasContractCreated(addr libcommon.Address) bool {
 	return stateObject.createdContract
 }
 
-// func (sdb *IntraBlockState) GetPrize() *uint256.Int {
-// 	return sdb.prize
-// }
+func (sdb *IntraBlockState) GetPrize(_ *utils.ID) *uint256.Int {
+	return sdb.prize
+}
 
 /*
  * SETTERS
  */
 
-// func (sdb *IntraBlockState) SetPrize(prize *uint256.Int) {
-// 	sdb.prize.Set(prize)
-// }
+func (sdb *IntraBlockState) SetPrize(prize *uint256.Int) {
+	sdb.prize.Set(prize)
+}
 
 func (sdb *IntraBlockState) AddPrize(prize *uint256.Int) {
 	// This will not be used as the IBS only serves as the bottom layer of the state storage
-	// sdb.SetPrize(new(uint256.Int).Add(sdb.prize, prize))
+	sdb.SetPrize(new(uint256.Int).Add(sdb.prize, prize))
 }
 
 // AddBalance adds amount to the account associated with addr.
@@ -771,13 +774,14 @@ func printAccount(EIP161Enabled bool, addr libcommon.Address, stateObject *state
 }
 
 // FinalizeTx should be called after every transaction.
-func (sdb *IntraBlockState) FinalizeTx(chainRules *chain.Rules, stateWriter state2.StateWriter) error {
+func (sdb *IntraBlockState) FinalizeTx(chainRules *chain.Rules, stateWriter state2.StateWriter) (err error) {
 	for addr, bi := range sdb.balanceInc {
 		if !bi.transferred {
 			sdb.getStateObject(addr)
 		}
 	}
-	for addr := range sdb.journal.dirties {
+	sdb.journal.dirties.Range(func(key, value interface{}) bool {
+		addr := key.(libcommon.Address)
 		so, exist := sdb.stateObjects.GetExist(addr)
 		if !exist {
 			// ripeMD is 'touched' at block 1714175, in tx 0x1237f737031e40bcde4a8b7e717b2d15e3ecadfe49bb1bbc71ee9deb09c6fcf2
@@ -786,15 +790,16 @@ func (sdb *IntraBlockState) FinalizeTx(chainRules *chain.Rules, stateWriter stat
 			// it will persist in the journal even though the journal is reverted. In this special circumstance,
 			// it may exist in `sdb.journal.dirties` but not in `sdb.stateObjects`.
 			// Thus, we can safely ignore it here
-			continue
+			return true
 		}
 
-		if err := updateAccount(chainRules.IsSpuriousDragon, chainRules.IsAura, stateWriter, addr, so, true); err != nil {
-			return err
+		if err = updateAccount(chainRules.IsSpuriousDragon, chainRules.IsAura, stateWriter, addr, so, true); err != nil {
+			return false
 		}
 		so.newlyCreated = false
 		sdb.stateObjectsDirty.Set(addr)
-	}
+		return true
+	})
 	// Invalidate journal because reverting across transactions is not allowed.
 	sdb.clearJournalAndRefund()
 	return nil
@@ -822,9 +827,11 @@ func (sdb *IntraBlockState) BalanceIncreaseSet() map[libcommon.Address]uint256.I
 }
 
 func (sdb *IntraBlockState) MakeWriteSet(chainRules *chain.Rules, stateWriter state2.StateWriter) error {
-	for addr := range sdb.journal.dirties {
+	sdb.journal.dirties.Range(func(key, value interface{}) bool {
+		addr := key.(libcommon.Address)
 		sdb.stateObjectsDirty.Set(addr)
-	}
+		return true
+	})
 	sdb.stateObjects.data.Range(func(_addr, _stateObject interface{}) bool {
 		addr := _addr.(libcommon.Address)
 		stateObject := _stateObject.(*stateObject)
@@ -845,7 +852,7 @@ func (sdb *IntraBlockState) Print(chainRules chain.Rules) {
 		addr := _addr.(libcommon.Address)
 		stateObject := _stateObject.(*stateObject)
 		isDirty := sdb.stateObjectsDirty.Exist(addr)
-		_, isDirty2 := sdb.journal.dirties[addr]
+		_, isDirty2 := sdb.journal.dirties.Load(addr)
 
 		printAccount(chainRules.IsSpuriousDragon, addr, stateObject, isDirty || isDirty2)
 		return true
@@ -952,3 +959,65 @@ func (sdb *IntraBlockState) SlotInAccessList(addr libcommon.Address, slot libcom
 func (sdb *IntraBlockState) GetTxIdx() int {
 	return sdb.txIndex
 }
+
+func (sdb *IntraBlockState) Commit(lw *localWrite, coinbase libcommon.Address, TxIdx *utils.ID) {
+
+	for addr, delta := range lw.storage {
+		// update EXIST
+		exist, ok := delta[utils.EXIST]
+		if ok {
+			if exist.(bool) {
+				// create account
+				is_contract_create := delta[utils.CODE] != nil
+				sdb.CreateAccount(addr, is_contract_create)
+			} else {
+				sdb.Selfdestruct(addr)
+			}
+		}
+
+		// update balance
+		balance, ok := delta[utils.BALANCE]
+		if ok {
+			sdb.SetBalance(addr, balance.(*uint256.Int))
+			// if addr == coinbase, we need to clean the prize
+			// because the prize is added to the balance in GetBalance
+			if addr == coinbase {
+				sdb.SetPrize(uint256.NewInt(0))
+			}
+		}
+
+		// update nonce
+		nonce, ok := delta[utils.NONCE]
+		if ok {
+			sdb.SetNonce(addr, nonce.(uint64))
+		}
+
+		// update code and code hash
+		code, ok := delta[utils.CODE]
+		if ok {
+			sdb.SetCode(addr, code.([]byte))
+		}
+
+		// update storage
+		for slot, value := range delta {
+			if slot == utils.BALANCE || slot == utils.NONCE || slot == utils.CODE || slot == utils.CODEHASH || slot == utils.EXIST {
+				continue
+			}
+			v := value.(*uint256.Int)
+			sdb.SetState(addr, &slot, *v)
+		}
+
+	}
+	// update prize
+	sdb.AddPrize(lw.getPrize())
+}
+
+func (sdb *IntraBlockState) SetPrizeKey(coinbase libcommon.Address) {
+
+}
+
+func (sdb *IntraBlockState) SetTask(task *types3.Task) {
+
+}
+
+func (sdb *IntraBlockState) Abort() {}

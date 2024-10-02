@@ -2,6 +2,7 @@ package multiversion
 
 import (
 	"blockConcur/utils"
+	"fmt"
 	"sync"
 )
 
@@ -23,25 +24,20 @@ type Version struct {
 	Plock sync.Mutex
 	Nlock sync.Mutex
 
-	Readby    map[int]struct{}
-	MaxReadby int
-
 	Mu   sync.Mutex
 	Cond *sync.Cond
 }
 
 func NewVersion(data interface{}, tid *utils.ID, status Status) *Version {
 	v := &Version{
-		Data:      data,
-		Tid:       tid,
-		Status:    status,
-		Readby:    make(map[int]struct{}),
-		MaxReadby: -1,
-		Next:      nil,
-		Prev:      nil,
-		Plock:     sync.Mutex{},
-		Nlock:     sync.Mutex{},
-		Mu:        sync.Mutex{},
+		Data:   data,
+		Tid:    tid,
+		Status: status,
+		Next:   nil,
+		Prev:   nil,
+		Plock:  sync.Mutex{},
+		Nlock:  sync.Mutex{},
+		Mu:     sync.Mutex{},
 	}
 	v.Cond = sync.NewCond(&v.Mu)
 	return v
@@ -50,7 +46,7 @@ func NewVersion(data interface{}, tid *utils.ID, status Status) *Version {
 func (v *Version) insertOrNext(iv *Version) *Version {
 	v.Nlock.Lock()
 	defer v.Nlock.Unlock()
-	if v.Next == nil || v.updatePrev(iv) {
+	if v.Next == nil || v.Next.updatePrev(iv) {
 		iv.Next = v.Next
 		v.Next = iv
 		iv.Prev = v
@@ -70,11 +66,16 @@ func (v *Version) updatePrev(iv *Version) bool {
 	return false
 }
 
+func (v *Version) Print() {
+	fmt.Printf("TID: %v, Status: %v, Data: %v\n", v.Tid, v.Status, v.Data)
+}
+
 func (v *Version) GetVisible() *Version {
 	if v == nil {
 		return nil
 	}
 	if v.Status != Committed {
+		// v.print()
 		return v.Prev.GetVisible()
 	}
 	return v

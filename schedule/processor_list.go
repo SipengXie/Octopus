@@ -120,11 +120,16 @@ func (pl *ProcessorList) Execute() {
 			newRwSet := rwset.NewRwSet()
 			pl.execCtx.SetTask(task, newRwSet)
 		}
+		evm.TxContext = pl.execCtx.TxCtx
 		task.Wait() // waiting for the task to be ready
 		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err == nil {
-			pl.execCtx.ExecState.Commit()
 			pl.totalGas += res.UsedGas
 		}
+		pl.execCtx.ExecState.Commit()
 	}
+}
+
+func (pl *ProcessorList) GetGas() uint64 {
+	return pl.totalGas
 }
