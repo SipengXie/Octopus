@@ -155,7 +155,7 @@ type IntraBlockState struct {
 
 	// Journal of state modifications. This is the backbone of
 	// Snapshot and RevertToSnapshot.
-	journal        *journal
+	journal        *journal_ibs
 	validRevisions []revision
 	nextRevisionID int
 	trace          bool
@@ -175,7 +175,7 @@ func New(stateReader state2.StateReader) *IntraBlockState {
 		stateObjectsDirty: NewExistMap(),
 		nilAccounts:       NewExistMap(),
 		logs:              map[libcommon.Hash][]*types.Log{},
-		journal:           newJournal(),
+		journal:           newJournal_ibs(),
 		accessList:        newAccessList(),
 		transientStorage:  newTransientStorage(),
 		balanceInc:        map[libcommon.Address]*BalanceIncrease{},
@@ -870,7 +870,7 @@ func (sdb *IntraBlockState) SetTxContext(thash, bhash libcommon.Hash, ti int) {
 
 // no not lock
 func (sdb *IntraBlockState) clearJournalAndRefund() {
-	sdb.journal = newJournal()
+	sdb.journal = newJournal_ibs()
 	sdb.validRevisions = sdb.validRevisions[:0]
 	sdb.refund = 0
 }

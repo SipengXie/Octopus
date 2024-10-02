@@ -38,7 +38,8 @@ type ExecState struct {
 	// but should not be written to concurrently
 	ColdData    ColdState
 	LocalWriter *localWrite
-	lwSnapshot  *localWrite
+	// TODO: Add a journal to replace lwsnapshot
+	lwSnapshot *localWrite
 
 	NewRwSet *rwset.RwSet
 	OldRwSet *rwset.RwSet
@@ -85,6 +86,18 @@ func NewForRun(mvCache *MvCache, coinbase common.Address, early_abort bool) *Exe
 	}
 }
 
+type InvalidError struct {
+	msg string
+}
+
+func (e *InvalidError) Error() string {
+	return e.msg
+}
+
+func newInvalidError(text string) *InvalidError {
+	return &InvalidError{msg: text}
+}
+
 // if oldRwSet is nil, we will not check the read set
 func (s *ExecState) is_valid_read(addr common.Address, slot common.Hash) {
 	if s.OldRwSet == nil {
@@ -94,7 +107,7 @@ func (s *ExecState) is_valid_read(addr common.Address, slot common.Hash) {
 	if !ok {
 		s.can_commit = false
 		if s.early_abort {
-			panic(fmt.Sprintf("invalid read: %s %s", addr.Hex(), utils.DecodeHash(slot)))
+			panic(newInvalidError(fmt.Sprintf("invalid read: %s %s", addr.Hex(), utils.DecodeHash(slot))))
 		}
 	}
 }
@@ -108,7 +121,7 @@ func (s *ExecState) is_valid_write(addr common.Address, slot common.Hash) {
 	if !ok {
 		s.can_commit = false
 		if s.early_abort {
-			panic(fmt.Sprintf("invalid write: %s %s", addr.Hex(), utils.DecodeHash(slot)))
+			panic(newInvalidError(fmt.Sprintf("invalid write: %s %s", addr.Hex(), utils.DecodeHash(slot))))
 		}
 	}
 }

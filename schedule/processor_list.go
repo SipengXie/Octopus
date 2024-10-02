@@ -6,6 +6,7 @@ import (
 	"blockConcur/evm/vm"
 	"blockConcur/evm/vm/evmtypes"
 	"blockConcur/rwset"
+	"blockConcur/state"
 	"fmt"
 	"sync"
 )
@@ -125,6 +126,8 @@ func (pl *ProcessorList) Execute() {
 		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err == nil {
 			pl.totalGas += res.UsedGas
+		} else if _, ok := err.(*state.InvalidError); ok {
+			// collect the invalid txs
 		}
 		pl.execCtx.ExecState.Commit()
 	}

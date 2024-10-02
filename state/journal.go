@@ -23,9 +23,9 @@ import (
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 )
 
-// journalEntry is a modification entry in the state change journal that can be
+// journalEntry_ibs is a modification entry in the state change journal that can be
 // reverted on demand.
-type journalEntry interface {
+type journalEntry_ibs interface {
 	// revert undoes the changes introduced by this journal entry.
 	revert(*IntraBlockState)
 
@@ -33,23 +33,23 @@ type journalEntry interface {
 	dirtied() *libcommon.Address
 }
 
-// journal contains the list of state modifications applied since the last state
+// journal_ibs contains the list of state modifications applied since the last state
 // commit. These are tracked to be able to be reverted in case of an execution
 // exception or revertal request.
-type journal struct {
-	entries []journalEntry // Current changes tracked by the journal
-	dirties sync.Map       // Dirty accounts and the number of changes
+type journal_ibs struct {
+	entries []journalEntry_ibs // Current changes tracked by the journal
+	dirties sync.Map           // Dirty accounts and the number of changes
 }
 
-// newJournal create a new initialized journal.
-func newJournal() *journal {
-	return &journal{
+// newJournal_ibs create a new initialized journal.
+func newJournal_ibs() *journal_ibs {
+	return &journal_ibs{
 		dirties: sync.Map{},
 	}
 }
 
 // append inserts a new modification entry to the end of the change journal.
-func (j *journal) append(entry journalEntry) {
+func (j *journal_ibs) append(entry journalEntry_ibs) {
 	j.entries = append(j.entries, entry)
 	if addr := entry.dirtied(); addr != nil {
 		count, _ := j.dirties.LoadOrStore(*addr, 0)
@@ -59,7 +59,7 @@ func (j *journal) append(entry journalEntry) {
 
 // revert undoes a batch of journalled modifications along with any reverted
 // dirty handling too.
-func (j *journal) revert(statedb *IntraBlockState, snapshot int) {
+func (j *journal_ibs) revert(statedb *IntraBlockState, snapshot int) {
 	for i := len(j.entries) - 1; i >= snapshot; i-- {
 		// Undo the changes made by the operation
 		j.entries[i].revert(statedb)
@@ -80,13 +80,13 @@ func (j *journal) revert(statedb *IntraBlockState, snapshot int) {
 // dirty explicitly sets an address to dirty, even if the change entries would
 // otherwise suggest it as clean. This method is an ugly hack to handle the RIPEMD
 // precompile consensus exception.
-func (j *journal) dirty(addr libcommon.Address) {
+func (j *journal_ibs) dirty(addr libcommon.Address) {
 	count, _ := j.dirties.LoadOrStore(addr, 0)
 	j.dirties.Store(addr, count.(int)+1)
 }
 
 // length returns the current number of entries in the journal.
-func (j *journal) length() int {
+func (j *journal_ibs) length() int {
 	return len(j.entries)
 }
 
