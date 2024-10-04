@@ -7,6 +7,7 @@ import (
 	"blockConcur/evm/vm/evmtypes"
 	"blockConcur/rwset"
 	utils "blockConcur/schedule/tree_utils"
+	"blockConcur/state"
 	"container/heap"
 	"fmt"
 	"sync"
@@ -32,6 +33,7 @@ type ProcessorTree struct {
 	execCtx  *eutils.ExecContext
 	wg       *sync.WaitGroup
 	totalGas uint64
+	size     int
 }
 
 func NewProcessorTree() *ProcessorTree {
@@ -87,6 +89,11 @@ func (pt *ProcessorTree) AddTask(task *TaskWrapper, eft eftResult) {
 		pt.SlotManager.ModifySlot(prevSlot)
 		pt.SlotManager.AddSlot(newSlot)
 	}
+	pt.size++
+}
+
+func (pt *ProcessorTree) Size() int {
+	return pt.size
 }
 
 func (pt *ProcessorTree) Execute() {
@@ -110,7 +117,10 @@ func (pt *ProcessorTree) Execute() {
 		if err == nil {
 			pt.execCtx.ExecState.Commit()
 			pt.totalGas += res.UsedGas
+		} else if _, ok := err.(*state.InvalidError); ok {
+			// collect the invalid txs
 		}
+		pt.execCtx.ExecState.Commit()
 	}
 }
 

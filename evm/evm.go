@@ -61,11 +61,9 @@ func NewEVMBlockContext(header *types.Header, blockHashFunc func(n uint64) libco
 		*excessBlobGas = *header.ExcessBlobGas
 	}
 
-	var transferFunc evmtypes.TransferFunc = Transfer
-
 	return evmtypes.BlockContext{
 		CanTransfer:   CanTransfer,
-		Transfer:      transferFunc,
+		Transfer:      Transfer,
 		GetHash:       blockHashFunc,
 		Coinbase:      beneficiary,
 		BlockNumber:   header.Number.Uint64(),
@@ -124,7 +122,7 @@ func GetHashFn(ref *types.Header, getHeader func(hash libcommon.Hash, number uin
 // CanTransfer checks whether there are enough funds in the address' account to make a transfer.
 // This does not take the necessary gas in to account to make the transfer valid.
 func CanTransfer(db evmtypes.IntraBlockState, addr libcommon.Address, amount *uint256.Int) bool {
-	if amount.Sign() == 0 {
+	if amount.IsZero() {
 		return true
 	}
 	return !db.GetBalance(addr).Lt(amount)
@@ -132,7 +130,7 @@ func CanTransfer(db evmtypes.IntraBlockState, addr libcommon.Address, amount *ui
 
 // Transfer subtracts amount from sender and adds amount to recipient using the given Db
 func Transfer(db evmtypes.IntraBlockState, sender, recipient libcommon.Address, amount *uint256.Int, bailout bool) {
-	if amount.Sign() == 0 {
+	if amount.IsZero() {
 		return
 	}
 	if !bailout {

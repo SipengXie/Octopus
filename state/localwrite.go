@@ -112,13 +112,6 @@ func (lw *localWrite) get(addr common.Address, hash common.Hash) (interface{}, b
 	return nil, false
 }
 
-// // A functional process
-
-// func (lw *localWrite) exist(addr common.Address) bool {
-// 	_, ok := lw.storage[addr]
-// 	return ok
-// }
-
 // ------------------------- Setters ------------------------------
 
 func (lw *localWrite) setBalance(addr common.Address, balance *uint256.Int) {
@@ -163,7 +156,6 @@ func (lw *localWrite) setTxContext(thash, bhash common.Hash, txIndex int) {
 }
 
 func (lw *localWrite) delete(addr common.Address) {
-	lw.setBalance(addr, uint256.NewInt(0))
 	if _, ok := lw.storage[addr]; !ok {
 		lw.storage[addr] = make(map[common.Hash]interface{})
 	}
@@ -202,24 +194,4 @@ func (lw *localWrite) createAccount(addr common.Address, _ bool) {
 		lw.storage[addr] = make(map[common.Hash]interface{})
 	}
 	lw.storage[addr][utils.EXIST] = true
-}
-
-func (lw *localWrite) copy() *localWrite {
-	c := newLocalWrite()
-	c.storage = make(map[common.Address]map[common.Hash]interface{})
-	for k, v := range lw.storage {
-		c.storage[k] = make(map[common.Hash]interface{})
-		for k2, v2 := range v {
-			c.storage[k][k2] = v2
-		}
-	}
-	c.refund = lw.refund
-	c.thash = lw.thash
-	c.bhash = lw.bhash
-	c.txIndex = lw.txIndex
-	c.logs = make([]*types.Log, len(lw.logs))
-	copy(c.logs, lw.logs)
-	c.logSize = lw.logSize
-	c.prize = new(uint256.Int).Set(lw.prize)
-	return c
 }

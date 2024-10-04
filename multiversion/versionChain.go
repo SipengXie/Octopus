@@ -37,20 +37,15 @@ func (vc *VersionChain) GetCommittedVersion() *Version {
 // Find the last committed version
 func (vc *VersionChain) GarbageCollection() *Version {
 	cur_v := vc.GetCommittedVersion()
-	newHead := NewVersion(cur_v.Data, utils.SnapshotID, Committed)
-	vc.Head = newHead
-	vc.LastCommit.Store(newHead)
+	// newHead := NewVersion(cur_v.Data, utils.SnapshotID, Committed)
+	// vc.Head = newHead
+	// vc.LastCommit.Store(newHead)
+	vc.Head = cur_v
 
-	return newHead
+	return cur_v
 }
 
 func (vc *VersionChain) Prune(Tid *utils.ID) {
-	if Tid == utils.EndID {
-		// reset the version chain
-		vc.Head = NewVersion(nil, utils.SnapshotID, Committed)
-		vc.LastCommit.Store(vc.Head)
-		return
-	}
 	cur := vc.Head
 	for cur.Tid.Less(Tid) {
 		cur = cur.Next

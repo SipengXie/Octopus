@@ -32,7 +32,6 @@ func (gp *GasPool) Reset(amount uint64) {
 }
 
 // AddGas makes gas available for execution.
-// TODO: could also be parallelized if needed
 func (gp *GasPool) AddGas(amount uint64) *GasPool {
 	if gp.gas > math.MaxUint64-amount {
 		panic("gas pool pushed above uint64")

@@ -11,7 +11,6 @@ var (
 	BALANCE  = common.BytesToHash([]byte("balance"))
 	NONCE    = common.BytesToHash([]byte("nonce"))
 	EXIST    = common.BytesToHash([]byte("exist"))
-	PRIZE    = common.BytesToHash([]byte("prize"))
 )
 
 func MakeKey(addr common.Address, hash common.Hash) string {
@@ -36,8 +35,6 @@ func DecodeHash(hash common.Hash) string {
 		return "code"
 	case EXIST:
 		return "exist"
-	case PRIZE:
-		return "prize"
 	default:
 		return hash.Hex()
 	}

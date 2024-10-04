@@ -46,8 +46,8 @@ func (s *ExecColdState) SetTask(task *types.Task) {
 	s.output_predict = newVersionMap(task.WriteVersions)
 }
 
-func (s *ExecColdState) SetPrizeKey(coinbase common.Address) {
-	s.inner_state.SetPrizeKey(coinbase)
+func (s *ExecColdState) SetCoinbase(coinbase common.Address) {
+	s.inner_state.SetCoinbase(coinbase)
 }
 
 func (s *ExecColdState) GetBalance(addr common.Address) *uint256.Int {
@@ -179,12 +179,12 @@ func (s *ExecColdState) GetPrize(TxIdx *utils.ID) *uint256.Int {
 // the output_predict, and update the inner_state utilize the new output_predict
 func (s *ExecColdState) Commit(lw *localWrite, coinbase common.Address, TxIdx *utils.ID) {
 	prize := lw.getPrize()
-	pVersion := s.output_predict.get(coinbase, utils.PRIZE)
+	pVersion := s.output_predict.data["prize"]
 	for key, version := range s.output_predict.data {
-		addr, hash := utils.ParseKey(key)
-		if hash == utils.PRIZE {
+		if key == "prize" {
 			continue
 		}
+		addr, hash := utils.ParseKey(key)
 		// if the addr & hash is not in the lw, settle the version to ignore
 		value, ok := lw.get(addr, hash)
 		if !ok {
@@ -196,7 +196,7 @@ func (s *ExecColdState) Commit(lw *localWrite, coinbase common.Address, TxIdx *u
 			}
 		}
 	}
-	s.inner_state.Update(pVersion, utils.MakeKey(coinbase, utils.PRIZE), prize)
+	s.inner_state.UpdatePrize(pVersion, prize)
 }
 
 func (s *ExecColdState) Abort() {

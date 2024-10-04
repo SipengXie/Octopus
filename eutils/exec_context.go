@@ -40,8 +40,8 @@ func getBlockContext(headers []*types.Header, coinbase common.Address, header *t
 }
 
 func (ctx *ExecContext) SetTask(task *types2.Task, newRW *rwset.RwSet) {
-	ctx.TxCtx.TxHash = task.TxHash
 	ctx.TxCtx = evm.NewEVMTxContext(task.Msg)
+	ctx.TxCtx.TxHash = task.TxHash
 	ctx.ExecState.SetTxContext(task, newRW)
 }
 

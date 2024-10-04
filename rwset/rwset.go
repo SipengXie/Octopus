@@ -55,12 +55,42 @@ func NewRwSet() *RwSet {
 	}
 }
 
-func (RWSets *RwSet) AddReadSet(addr common.Address, hash common.Hash) {
-	if RWSets == nil {
+func (set *RwSet) BasicRwSet(sender, to common.Address, is_transfer, is_call, is_coinbase bool) {
+	set.AddReadSet(sender, utils.NONCE)
+	set.AddWriteSet(sender, utils.NONCE)
+
+	set.AddWritePrize()
+	if is_coinbase {
+		set.AddReadPrize()
+	}
+
+	if is_transfer {
+		set.AddReadSet(sender, utils.BALANCE)
+		set.AddWriteSet(sender, utils.BALANCE)
+		if to != (common.Address{}) { // not create
+			set.AddReadSet(to, utils.BALANCE)
+			set.AddWriteSet(to, utils.BALANCE)
+		}
+	}
+
+	if is_call {
+		if to != (common.Address{}) { // not create
+			set.AddReadSet(to, utils.CODE)
+			set.AddReadSet(to, utils.CODEHASH)
+		}
+	}
+}
+
+func (set *RwSet) AddReadSet(addr common.Address, hash common.Hash) {
+	if set == nil {
 		fmt.Println("NewRWSets is nil")
 		return
 	}
-	RWSets.ReadSet.Add(addr, hash)
+	set.ReadSet.Add(addr, hash)
+}
+
+func (RWSet *RwSet) AddReadPrize() {
+	RWSet.ReadSet["prize"] = struct{}{}
 }
 
 func (RWSets *RwSet) AddWriteSet(addr common.Address, hash common.Hash) {
@@ -69,6 +99,10 @@ func (RWSets *RwSet) AddWriteSet(addr common.Address, hash common.Hash) {
 		return
 	}
 	RWSets.WriteSet.Add(addr, hash)
+}
+
+func (RWSet *RwSet) AddWritePrize() {
+	RWSet.WriteSet["prize"] = struct{}{}
 }
 
 func (RWSets *RwSet) Equal(other *RwSet) bool {

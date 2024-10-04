@@ -4,7 +4,6 @@ import (
 	dag "blockConcur/graph"
 	"blockConcur/rwset"
 	"blockConcur/types"
-	"blockConcur/utils"
 	"fmt"
 	"sync"
 	"time"
@@ -41,8 +40,7 @@ func GenerateGraph(tasks types.Tasks, rwAccessedBy *rwset.RwAccessedBy) (float64
 		if len(wTasks) == 0 {
 			continue
 		}
-		_, hash := utils.ParseKey(key)
-		if hash == utils.PRIZE {
+		if key == "prize" {
 			// The reason for adding all edges is that we consider concurrency optimization for PRIZE.
 			// PRIZE read is dependent for all previous write tasks.
 			for _, rID := range rTasks {
@@ -50,8 +48,10 @@ func GenerateGraph(tasks types.Tasks, rwAccessedBy *rwset.RwAccessedBy) (float64
 					if rID.Less(wID) || rID.Equal(wID) {
 						break
 					}
-					// we do not read the prize from a single version, so we do not need to record the version
 					graph.AddEdge(wID, rID)
+					rNode := graph.Vertices[rID]
+					wNode := graph.Vertices[wID]
+					rNode.Task.AddPrizeVersion(wNode.Task.WriteVersions[key])
 				}
 			}
 		} else {

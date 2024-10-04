@@ -17,6 +17,7 @@
 package state
 
 import (
+	"blockConcur/utils"
 	"sync"
 
 	"github.com/holiman/uint256"
@@ -28,6 +29,14 @@ import (
 type journalEntry_ibs interface {
 	// revert undoes the changes introduced by this journal entry.
 	revert(*IntraBlockState)
+
+	// dirtied returns the Ethereum address modified by this journal entry.
+	dirtied() *libcommon.Address
+}
+
+type journalEntry_exec interface {
+	// revert undoes the changes introduced by this journal entry.
+	revertExec(*ExecState)
 
 	// dirtied returns the Ethereum address modified by this journal entry.
 	dirtied() *libcommon.Address
@@ -90,6 +99,44 @@ func (j *journal_ibs) length() int {
 	return len(j.entries)
 }
 
+type journal_exec struct {
+	entries []journalEntry_exec
+	dirties map[libcommon.Address]int
+}
+
+func newJournal_exec() *journal_exec {
+	return &journal_exec{
+		entries: make([]journalEntry_exec, 0),
+		dirties: make(map[libcommon.Address]int),
+	}
+}
+
+func (j *journal_exec) append(entry journalEntry_exec) {
+	j.entries = append(j.entries, entry)
+	if addr := entry.dirtied(); addr != nil {
+		j.dirties[*addr]++
+	}
+}
+
+func (j *journal_exec) revert(statedb *ExecState, snapshot int) {
+	for i := len(j.entries) - 1; i >= snapshot; i-- {
+		j.entries[i].revertExec(statedb)
+
+		if addr := j.entries[i].dirtied(); addr != nil {
+			if j.dirties[*addr] > 1 {
+				j.dirties[*addr]--
+			} else {
+				delete(j.dirties, *addr)
+			}
+		}
+	}
+	j.entries = j.entries[:snapshot]
+}
+
+func (j *journal_exec) length() int {
+	return len(j.entries)
+}
+
 type (
 	// Changes to the account trie.
 	createObjectChange struct {
@@ -100,15 +147,24 @@ type (
 		prev    *stateObject
 	}
 	selfdestructChange struct {
-		account     *libcommon.Address
-		prev        bool // whether account had already selfdestructed
-		prevbalance uint256.Int
+		account        *libcommon.Address
+		prev           bool // whether account had already selfdestructed
+		prevbalance    uint256.Int
+		prevnonce      uint64
+		prevcode       []byte
+		prevhash       libcommon.Hash
+		found_exist    bool
+		found_balance  bool
+		found_nonce    bool
+		found_code     bool
+		found_codehash bool
 	}
 
 	// Changes to individual accounts.
 	balanceChange struct {
 		account *libcommon.Address
 		prev    uint256.Int
+		found   bool
 	}
 	balanceIncrease struct {
 		account  *libcommon.Address
@@ -120,11 +176,13 @@ type (
 	nonceChange struct {
 		account *libcommon.Address
 		prev    uint64
+		found   bool
 	}
 	storageChange struct {
 		account  *libcommon.Address
 		key      libcommon.Hash
 		prevalue uint256.Int
+		found    bool
 	}
 	fakeStorageChange struct {
 		account  *libcommon.Address
@@ -135,6 +193,7 @@ type (
 		account  *libcommon.Address
 		prevcode []byte
 		prevhash libcommon.Hash
+		found    bool
 	}
 
 	// Changes to other state values.
@@ -169,6 +228,10 @@ func (ch createObjectChange) revert(s *IntraBlockState) {
 	s.stateObjectsDirty.Delete(*ch.account)
 }
 
+func (ch createObjectChange) revertExec(s *ExecState) {
+	delete(s.LocalWriter.storage, *ch.account)
+}
+
 func (ch createObjectChange) dirtied() *libcommon.Address {
 	return ch.account
 }
@@ -189,6 +252,37 @@ func (ch selfdestructChange) revert(s *IntraBlockState) {
 	}
 }
 
+func (ch selfdestructChange) revertExec(s *ExecState) {
+	if !ch.found_exist {
+		delete(s.LocalWriter.storage[*ch.account], utils.EXIST)
+	} else {
+		s.LocalWriter.storage[*ch.account][utils.EXIST] = ch.prev
+	}
+	if !ch.found_balance {
+		delete(s.LocalWriter.storage[*ch.account], utils.BALANCE)
+	} else {
+		s.LocalWriter.storage[*ch.account][utils.BALANCE] = &ch.prevbalance
+	}
+	if !ch.found_nonce {
+		delete(s.LocalWriter.storage[*ch.account], utils.NONCE)
+	} else {
+		s.LocalWriter.storage[*ch.account][utils.NONCE] = ch.prevnonce
+	}
+	if !ch.found_code {
+		delete(s.LocalWriter.storage[*ch.account], utils.CODE)
+	} else {
+		s.LocalWriter.storage[*ch.account][utils.CODE] = ch.prevcode
+	}
+	if !ch.found_codehash {
+		delete(s.LocalWriter.storage[*ch.account], utils.CODEHASH)
+	} else {
+		s.LocalWriter.storage[*ch.account][utils.CODEHASH] = ch.prevhash
+	}
+	if len(s.LocalWriter.storage[*ch.account]) == 0 {
+		delete(s.LocalWriter.storage, *ch.account)
+	}
+}
+
 func (ch selfdestructChange) dirtied() *libcommon.Address {
 	return ch.account
 }
@@ -204,6 +298,17 @@ func (ch touchChange) dirtied() *libcommon.Address {
 
 func (ch balanceChange) revert(s *IntraBlockState) {
 	s.getStateObject(*ch.account).setBalance(&ch.prev)
+}
+
+func (ch balanceChange) revertExec(s *ExecState) {
+	if !ch.found {
+		delete(s.LocalWriter.storage[*ch.account], utils.BALANCE)
+		if len(s.LocalWriter.storage[*ch.account]) == 0 {
+			delete(s.LocalWriter.storage, *ch.account)
+		}
+	} else {
+		s.LocalWriter.storage[*ch.account][utils.BALANCE] = &ch.prev
+	}
 }
 
 func (ch balanceChange) dirtied() *libcommon.Address {
@@ -235,6 +340,17 @@ func (ch nonceChange) revert(s *IntraBlockState) {
 	s.getStateObject(*ch.account).setNonce(ch.prev)
 }
 
+func (ch nonceChange) revertExec(s *ExecState) {
+	if !ch.found {
+		delete(s.LocalWriter.storage[*ch.account], utils.NONCE)
+		if len(s.LocalWriter.storage[*ch.account]) == 0 {
+			delete(s.LocalWriter.storage, *ch.account)
+		}
+	} else {
+		s.LocalWriter.storage[*ch.account][utils.NONCE] = ch.prev
+	}
+}
+
 func (ch nonceChange) dirtied() *libcommon.Address {
 	return ch.account
 }
@@ -243,12 +359,36 @@ func (ch codeChange) revert(s *IntraBlockState) {
 	s.getStateObject(*ch.account).setCode(ch.prevhash, ch.prevcode)
 }
 
+func (ch codeChange) revertExec(s *ExecState) {
+	if !ch.found {
+		delete(s.LocalWriter.storage[*ch.account], utils.CODE)
+		delete(s.LocalWriter.storage[*ch.account], utils.CODEHASH)
+		if len(s.LocalWriter.storage[*ch.account]) == 0 {
+			delete(s.LocalWriter.storage, *ch.account)
+		}
+	} else {
+		s.LocalWriter.storage[*ch.account][utils.CODE] = ch.prevcode
+		s.LocalWriter.storage[*ch.account][utils.CODEHASH] = ch.prevhash
+	}
+}
+
 func (ch codeChange) dirtied() *libcommon.Address {
 	return ch.account
 }
 
 func (ch storageChange) revert(s *IntraBlockState) {
 	s.getStateObject(*ch.account).setState(&ch.key, ch.prevalue)
+}
+
+func (ch storageChange) revertExec(s *ExecState) {
+	if !ch.found {
+		delete(s.LocalWriter.storage[*ch.account], ch.key)
+		if len(s.LocalWriter.storage[*ch.account]) == 0 {
+			delete(s.LocalWriter.storage, *ch.account)
+		}
+	} else {
+		s.LocalWriter.storage[*ch.account][ch.key] = &ch.prevalue
+	}
 }
 
 func (ch storageChange) dirtied() *libcommon.Address {
@@ -273,6 +413,10 @@ func (ch transientStorageChange) dirtied() *libcommon.Address {
 
 func (ch refundChange) revert(s *IntraBlockState) {
 	s.refund = ch.prev
+}
+
+func (ch refundChange) revertExec(s *ExecState) {
+	s.LocalWriter.refund = ch.prev
 }
 
 func (ch refundChange) dirtied() *libcommon.Address {
@@ -306,11 +450,19 @@ func (ch accessListAddAccountChange) revert(s *IntraBlockState) {
 	s.accessList.DeleteAddress(*ch.address)
 }
 
+func (ch accessListAddAccountChange) revertExec(s *ExecState) {
+	s.accessList.DeleteAddress(*ch.address)
+}
+
 func (ch accessListAddAccountChange) dirtied() *libcommon.Address {
 	return nil
 }
 
 func (ch accessListAddSlotChange) revert(s *IntraBlockState) {
+	s.accessList.DeleteSlot(*ch.address, *ch.slot)
+}
+
+func (ch accessListAddSlotChange) revertExec(s *ExecState) {
 	s.accessList.DeleteSlot(*ch.address, *ch.slot)
 }
 

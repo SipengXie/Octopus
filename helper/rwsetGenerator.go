@@ -4,12 +4,12 @@ import (
 	"blockConcur/eutils"
 	core "blockConcur/evm"
 	"blockConcur/evm/vm"
-	"blockConcur/evm/vm/evmtypes"
 	"blockConcur/rwset"
 	"blockConcur/state"
 	"blockConcur/types"
 	"fmt"
 
+	"github.com/ledgerwatch/erigon-lib/common"
 	types2 "github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/params"
 )
@@ -18,23 +18,39 @@ import (
 func GenerateAccurateRwSets(txs types2.Transactions, header *types2.Header, headers []*types2.Header, ibs *state.IntraBlockState, worker_num int) types.Tasks {
 	cfg := params.MainnetChainConfig
 	tasks := ConvertTxToTasks(txs, header, worker_num)
-	// used for serial execution
+	// 用于串行执行
 	execCtx := eutils.NewExecContext(header, headers, cfg, false)
 	execState := state.NewForRwSetGen(ibs, header.Coinbase, false, 8192)
 	execCtx.ExecState = execState
-	evm := vm.NewEVM(execCtx.BlockCtx, evmtypes.TxContext{}, execState, execCtx.ChainCfg, vm.Config{})
 	for _, task := range tasks {
 		newRwSet := rwset.NewRwSet()
 		execCtx.SetTask(task, newRwSet)
-		evm.TxContext = execCtx.TxCtx
+		evm := vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
+
+		/* This code section is used for debugging
+		var tracer vm.EVMLogger
+		var evm *vm.EVM
+		if task.TxHash == common.HexToHash("0x83d6a34cf13f93bc418ceb5ced9b61f640a3e936fbd98f6d8c6d4896ab70d12b") {
+			tracer = NewStructLogger(&LogConfig{})
+			evm = vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{Debug: true, Tracer: tracer})
+		} else {
+			evm = vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
+		}
+		*/
+
 		_, err := core.ApplyMessage(evm, task.Msg, new(core.GasPool).AddGas(task.Msg.Gas()).AddBlobGas(task.Msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err != nil {
-			// we have dealt with the coinbase issue
-			// panic if the issue happens again
 			panic(fmt.Sprintf("error: %v, txHash:%v", err, task.TxHash))
-			// when formally use, we should ignore the error and
-			// continue
 		}
+
+		/* This code section is used for debugging
+		if task.TxHash == common.HexToHash("0x83d6a34cf13f93bc418ceb5ced9b61f640a3e936fbd98f6d8c6d4896ab70d12b") {
+			if structLogs, ok := tracer.(*StructLogger); ok {
+				structLogs.Flush(task.TxHash)
+			}
+		}
+		*/
+
 		execState.Commit()
 		task.RwSet = newRwSet
 	}
@@ -61,42 +77,21 @@ func GeneratePredictRwSets(txs types2.Transactions, header *types2.Header, heade
 		_, err := core.ApplyMessage(evm, task.Msg, new(core.GasPool).AddGas(task.Msg.Gas()).AddBlobGas(task.Msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err != nil {
 			// some transaction may not be predicted
-			// if it happens, we can ignore it
+			// if it happens, we can generate some basic rwset
+			// we could skip it, or provide some basic information
 			fmt.Printf("error: %v, txHash:%v\n", err, task.TxHash)
-			continue
+			newRwSet = rwset.NewRwSet()
+			is_transfer := !task.Msg.Value().IsZero()
+			is_coinbase := task.Msg.From() == header.Coinbase
+			is_call := task.Msg.To() != nil && len(execState.GetCode(*task.Msg.To())) > 0
+			var to common.Address
+			if task.Msg.To() != nil {
+				to = *task.Msg.To()
+			}
+			newRwSet.BasicRwSet(task.Msg.From(), to, is_transfer, is_coinbase, is_call)
 		}
-		output = append(output, task)
 		task.RwSet = newRwSet
+		output = append(output, task)
 	}
-
-	// the output is ordered by utils.ID
 	return output
 }
-
-// func SerialExecute(txs types2.Transactions, header *types2.Header, execCtx *types.ExecContext, coldData *state.IntraBlockState) (cost, tps, gps float64, total_gas uint64) {
-// 	cfg := params.MainnetChainConfig
-// 	execState := state.NewExecState(coldData, nil, header.Coinbase)
-// 	evm := vm.NewEVM(execCtx.BlockCtx, evmtypes.TxContext{}, execState, execCtx.ChainCfg, vm.Config{})
-// 	rules := evm.ChainRules()
-// 	total_gas = uint64(0)
-// 	st := time.Now()
-// 	for id, tx := range txs {
-// 		msg, _ := tx.AsMessage(*types2.LatestSigner(cfg), header.BaseFee, rules)
-// 		ctx := core.NewEVMTxContext(msg)
-// 		ctx.TxHash = tx.Hash()
-// 		evm.TxContext = ctx
-// 		execState.SetTxContext(tx.Hash(), header.Hash(), id)
-// 		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
-// 		if err != nil {
-// 			// we have dealt with the coinbase issue
-// 			// panic if the issue happens again
-// 			panic(fmt.Sprintf("error: %v, txHash:%v", err, tx.Hash()))
-// 			// when formally use, we should ignore the error and
-// 			// continue
-// 		}
-// 		execState.Commit(rules)
-// 		total_gas += res.UsedGas
-// 	}
-// 	cost = time.Since(st).Seconds()
-// 	return cost, float64(len(txs)) / cost, float64(total_gas) / cost, total_gas
-// }

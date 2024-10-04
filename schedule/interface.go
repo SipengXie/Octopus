@@ -15,6 +15,7 @@ type Processor interface {
 	FindEFT(*TaskWrapper) eftResult
 	AddTask(*TaskWrapper, eftResult)
 	Print()
+	Size() int
 	// TODO: complete the function
 	Execute()
 	SetExecCtx(*eutils.ExecContext, *sync.WaitGroup)

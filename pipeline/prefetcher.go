@@ -47,9 +47,12 @@ func GeneratePools(cache *state.MvCache, fetchPoolSize, ivPoolSize int) (fetchPo
 	fetchPool, err := ants.NewPoolWithFunc(fetchPoolSize, func(i interface{}) {
 		// i is a struct of key and waitGroup
 		taskAndWg := i.(*keyAndWg)
-		key := taskAndWg.key
 		wg := taskAndWg.wg
+		key := taskAndWg.key
 		defer wg.Done()
+		if key == "prize" {
+			return
+		}
 		cache.Fetch(utils.ParseKey(key))
 	})
 	if err != nil {

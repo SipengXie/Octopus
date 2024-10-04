@@ -54,6 +54,10 @@ func (p *ProcessorSimple) AddTask(tw *TaskWrapper, eftResult eftResult) {
 	p.Tasks = append(p.Tasks, tw)
 }
 
+func (p *ProcessorSimple) Size() int {
+	return len(p.Tasks)
+}
+
 func (p *ProcessorSimple) Execute() {}
 
 func (p *ProcessorSimple) GetGas() uint64 {

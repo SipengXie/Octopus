@@ -29,8 +29,16 @@ func TestSingleBlock(t *testing.T) {
 		fmt.Printf("BlockNum: %d, Graph Cost: %.2f ms\n", blockNum, cost_graph*1000)
 		cost_schedule, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum)
 		fmt.Printf("BlockNum: %d, Schedule Cost: %.2f ms\n", blockNum, cost_schedule*1000)
-		cost_execute, gas := pipeline.Execute(processors, header, env.Headers, env.Cfg, early_abort, mvCache)
+		cost_execute, gas := pipeline.Execute(processors, block.Withdrawals(), header, env.Headers, env.Cfg, early_abort, mvCache)
 		fmt.Printf("BlockNum: %d, Execute Cost: %.2f ms\n", blockNum, cost_execute*1000)
+
+		nxt_ibs := env.GetIBS(uint64(blockNum+1), dbTx)
+		tid := mvCache.Validate(nxt_ibs)
+		if tid != nil {
+			fmt.Println(tid)
+			fmt.Println(tasks[tid.TxIndex].TxHash.Hex())
+			break
+		}
 
 		totalTime := cost_prefetch + cost_graph + cost_schedule + cost_execute
 		tps := float64(len(tasks)) / (float64(totalTime))

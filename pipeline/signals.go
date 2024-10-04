@@ -5,6 +5,8 @@ import (
 	"blockConcur/rwset"
 	"blockConcur/schedule"
 	"blockConcur/types"
+
+	types2 "github.com/ledgerwatch/erigon/core/types"
 )
 
 type FLAG int
@@ -34,4 +36,5 @@ type ScheduleMessage struct {
 	Flag       FLAG
 	Processors schedule.Processors
 	Makespan   uint64
+	Withdraws  types2.Withdrawals
 }

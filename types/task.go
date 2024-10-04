@@ -20,6 +20,7 @@ type Task struct {
 
 	ReadVersions  map[string]*mv.Version
 	WriteVersions map[string]*mv.Version
+	PrizeVersions []*mv.Version
 }
 
 func NewTask(id *utils.ID, cost uint64, msg *types2.Message, bHash, tHash common.Hash) *Task {
@@ -43,8 +44,19 @@ func (t *Task) AddWriteVersion(key string, version *mv.Version) {
 	t.WriteVersions[key] = version
 }
 
+func (t *Task) AddPrizeVersion(version *mv.Version) {
+	t.PrizeVersions = append(t.PrizeVersions, version)
+}
+
 func (t *Task) Wait() {
 	for _, version := range t.ReadVersions {
+		version.Mu.Lock()
+		for version.Status == mv.Pending {
+			version.Cond.Wait()
+		}
+		version.Mu.Unlock()
+	}
+	for _, version := range t.PrizeVersions {
 		version.Mu.Lock()
 		for version.Status == mv.Pending {
 			version.Cond.Wait()

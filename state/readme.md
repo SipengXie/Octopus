@@ -8,3 +8,4 @@
     - readVersions变成input_data
     - writeVersions变成output_data
 - 我们的execstate应该有一个journal，每个Tx都会有新的；我们的evm.call/create的snapshot和revert也应该加上，因为子合约的call可能被revert，但不影响父合约
+- PrizeChain应该单独维护，不该放在vcCache里
