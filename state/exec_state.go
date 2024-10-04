@@ -255,11 +255,11 @@ func (s *ExecState) GetCode(addr common.Address) []byte {
 }
 
 func (s *ExecState) SetCode(addr common.Address, code []byte) {
-	s.is_valid_write(addr, utils.CODE)
-	s.is_valid_write(addr, utils.CODEHASH)
 	if dead, found := s.LocalWriter.hasSelfdestructed(addr); dead && found {
 		return
 	}
+	s.is_valid_write(addr, utils.CODE)
+	s.is_valid_write(addr, utils.CODEHASH)
 	s.NewRwSet.AddWriteSet(addr, utils.CODE)
 	s.NewRwSet.AddWriteSet(addr, utils.CODEHASH)
 	prevHash, ok1 := s.LocalWriter.getCodeHash(addr)
