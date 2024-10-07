@@ -7,9 +7,11 @@ import (
 	"blockConcur/rwset"
 	"blockConcur/state"
 	"blockConcur/types"
+	"blockConcur/utils"
 	"fmt"
 
 	"github.com/ledgerwatch/erigon-lib/common"
+	types3 "github.com/ledgerwatch/erigon-lib/types"
 	types2 "github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/params"
 )
@@ -26,7 +28,6 @@ func GenerateAccurateRwSets(txs types2.Transactions, header *types2.Header, head
 		newRwSet := rwset.NewRwSet()
 		execCtx.SetTask(task, newRwSet)
 		evm := vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
-
 		/* This code section is used for debugging
 		var tracer vm.EVMLogger
 		var evm *vm.EVM
@@ -50,9 +51,11 @@ func GenerateAccurateRwSets(txs types2.Transactions, header *types2.Header, head
 			}
 		}
 		*/
-
-		execState.Commit()
+		if len(task.Msg.AccessList()) > 0 {
+			mergeAccessList(task.Msg.AccessList(), newRwSet)
+		}
 		task.RwSet = newRwSet
+		execState.Commit()
 	}
 	return tasks
 }
@@ -74,7 +77,7 @@ func GeneratePredictRwSets(txs types2.Transactions, header *types2.Header, heade
 
 		evm := vm.NewEVM(execCtx.BlockCtx, ctx, execState, execCtx.ChainCfg, vm.Config{})
 
-		_, err := core.ApplyMessage(evm, task.Msg, new(core.GasPool).AddGas(task.Msg.Gas()).AddBlobGas(task.Msg.BlobGas()), true /* refunds */, false /* gasBailout */)
+		_, err := core.ApplyMessage(evm, task.Msg, new(core.GasPool).AddGas(task.Msg.Gas()).AddBlobGas(task.Msg.BlobGas()), true /* refunds */, true /* gasBailout */)
 		if err != nil {
 			// some transaction may not be predicted
 			// if it happens, we can generate some basic rwset
@@ -90,8 +93,34 @@ func GeneratePredictRwSets(txs types2.Transactions, header *types2.Header, heade
 			}
 			newRwSet.BasicRwSet(task.Msg.From(), to, is_transfer, is_coinbase, is_call)
 		}
+		if len(task.Msg.AccessList()) > 0 {
+			mergeAccessList(task.Msg.AccessList(), newRwSet)
+		}
 		task.RwSet = newRwSet
 		output = append(output, task)
 	}
 	return output
+}
+
+func mergeAccessList(accessList types3.AccessList, rwSet *rwset.RwSet) {
+
+	for _, access := range accessList {
+		address := access.Address
+		for _, storageKey := range access.StorageKeys {
+			rwSet.AddReadSet(address, storageKey)
+			rwSet.AddWriteSet(address, storageKey)
+		}
+		rwSet.AddReadSet(address, utils.BALANCE)
+		rwSet.AddReadSet(address, utils.NONCE)
+		rwSet.AddReadSet(address, utils.CODE)
+		rwSet.AddReadSet(address, utils.CODEHASH)
+		rwSet.AddReadSet(address, utils.EXIST)
+
+		rwSet.AddWriteSet(address, utils.BALANCE)
+		rwSet.AddWriteSet(address, utils.NONCE)
+		rwSet.AddWriteSet(address, utils.CODE)
+		rwSet.AddWriteSet(address, utils.CODEHASH)
+		rwSet.AddWriteSet(address, utils.EXIST)
+	}
+
 }

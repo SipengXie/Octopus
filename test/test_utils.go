@@ -3,7 +3,7 @@ package test
 import "runtime"
 
 const startNum uint64 = 18500000
-const endNum uint64 = 18500100
+const endNum uint64 = 18560000
 const cacheSize = 8192
 const use_tree_threshold = 10000
 const early_abort bool = false

@@ -23,7 +23,7 @@ import (
 const PATH = "/chaindata/erigondata/chaindata"
 const LABEL = kv.ChainDB
 const SNAPSHOT = "/chaindata/erigondata/snapshots"
-const ThreadsLimit = 9_000
+const ThreadsLimit = 9_000_000
 
 func dbCfg(label kv.Label, path string) mdbx.MdbxOpts {
 	limiterB := semaphore.NewWeighted(ThreadsLimit)
@@ -58,8 +58,6 @@ type GloablEnv struct {
 	BlockReader *freezeblocks.BlockReader
 	DB          kv.RoDB
 	Cfg         *chain.Config
-	// header cache, header inside is continous
-	Headers []*types.Header
 }
 
 func PrepareEnv() GloablEnv {
@@ -79,7 +77,6 @@ func PrepareEnv() GloablEnv {
 		BlockReader: blockReader,
 		DB:          db,
 		Cfg:         params.MainnetChainConfig,
-		Headers:     make([]*types.Header, 256),
 	}
 }
 
@@ -99,12 +96,13 @@ func (g *GloablEnv) GetBlockAndHeader(blockNumber uint64) (*types.Block, *types.
 		panic(err)
 	}
 
-	// fetch corresponding 256 headers in parallel (for simplicity)
-	// decalring dbTxs
-	// TODO: an initial version of header cache generation,
-	// when we merge blocks, we need more headers.
-	dbTxs := make([]kv.Tx, 256)
+	return blk, header
+}
+
+func (g *GloablEnv) FetchHeaders(start, end uint64) []*types.Header {
+	dbTxs := make([]kv.Tx, end-start+1)
 	for i := range dbTxs {
+		var err error
 		dbTxs[i], err = g.DB.BeginRo(g.Ctx)
 		if err != nil {
 			panic(err)
@@ -116,16 +114,17 @@ func (g *GloablEnv) GetBlockAndHeader(blockNumber uint64) (*types.Block, *types.
 		}
 	}()
 
+	headers := make([]*types.Header, end-start+1)
 	var wg sync.WaitGroup
-	pool, _ := ants.NewPoolWithFunc(256, func(i interface{}) {
+	pool, _ := ants.NewPoolWithFunc(int(end-start+1), func(i interface{}) {
 		defer wg.Done()
-		// fetch header
+		// 获取头部
 		idx := i.(int)
-		header, err := g.BlockReader.HeaderByNumber(g.Ctx, dbTxs[idx], blk.NumberU64()-uint64(256-idx))
+		header, err := g.BlockReader.HeaderByNumber(g.Ctx, dbTxs[idx], start+uint64(idx))
 		if err != nil {
 			panic(err)
 		}
-		g.Headers[idx] = header
+		headers[idx] = header
 	})
 
 	for i := range dbTxs {
@@ -134,7 +133,7 @@ func (g *GloablEnv) GetBlockAndHeader(blockNumber uint64) (*types.Block, *types.
 	}
 	wg.Wait()
 
-	return blk, header
+	return headers
 }
 
 func (g *GloablEnv) GetIBS(blockNumber uint64, dbTx kv.Tx) *innerstate.IntraBlockState {
@@ -142,7 +141,3 @@ func (g *GloablEnv) GetIBS(blockNumber uint64, dbTx kv.Tx) *innerstate.IntraBloc
 	ibs := innerstate.New(pls)
 	return ibs
 }
-
-// func (g *GloablEnv) NewExecContext(header *types.Header) *types2.ExecContext {
-// 	return types2.NewExecContext(g.BlockReader, header, g.Cfg, g.Headers)
-// }
