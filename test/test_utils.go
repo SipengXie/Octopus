@@ -2,8 +2,8 @@ package test
 
 import "runtime"
 
-const startNum uint64 = 18500000
-const endNum uint64 = 18600000
+const startNum uint64 = 18501000
+const endNum uint64 = 18501010
 const cacheSize = 8192
 const use_tree_threshold = 10000
 const early_abort bool = false
@@ -12,7 +12,7 @@ const early_abort bool = false
 // cpu resources.
 var fetchPoolSize = runtime.NumCPU() / 2
 var ivPoolSize = runtime.NumCPU() / 2
-var processorNum = runtime.NumCPU()
+var processorNum = 32
 var convertNum = runtime.NumCPU()
 var use_tree = func(i int) bool {
 	return i >= use_tree_threshold

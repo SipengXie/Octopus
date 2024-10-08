@@ -8,6 +8,7 @@ import (
 	"blockConcur/rwset"
 	utils "blockConcur/schedule/tree_utils"
 	"blockConcur/state"
+	"blockConcur/types"
 	"container/heap"
 	"fmt"
 	"sync"
@@ -99,16 +100,18 @@ func (pt *ProcessorTree) Size() int {
 func (pt *ProcessorTree) Execute() {
 	defer pt.wg.Done()
 	evm := vm.NewEVM(pt.execCtx.BlockCtx, evmtypes.TxContext{}, pt.execCtx.ExecState, pt.execCtx.ChainCfg, vm.Config{})
+	deferedTasks := make(types.Tasks, 0)
 	for pt.Tasks.Len() > 0 {
 		task := heap.Pop(&pt.Tasks).(*TaskWrapper).Task
 		if task.Msg == nil {
 			continue
 		}
 		msg := task.Msg
+		var newRwSet *rwset.RwSet
 		if pt.execCtx.EarlyAbort {
 			pt.execCtx.SetTask(task, nil)
 		} else {
-			newRwSet := rwset.NewRwSet()
+			newRwSet = rwset.NewRwSet()
 			pt.execCtx.SetTask(task, newRwSet)
 		}
 		evm.TxContext = pt.execCtx.TxCtx
@@ -118,10 +121,14 @@ func (pt *ProcessorTree) Execute() {
 			pt.execCtx.ExecState.Commit()
 			pt.totalGas += res.UsedGas
 		} else if _, ok := err.(*state.InvalidError); ok {
-			// collect the invalid txs
+			deferedTasks = append(deferedTasks, task)
+		}
+		if newRwSet != nil {
+			task.RwSet = newRwSet
 		}
 		pt.execCtx.ExecState.Commit()
 	}
+	pt.totalGas += processDeferedTasks(deferedTasks, pt.execCtx, evm, pt.execCtx.EarlyAbort)
 }
 
 func (pt *ProcessorTree) GetGas() uint64 {

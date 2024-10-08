@@ -7,6 +7,8 @@ import (
 	"blockConcur/evm/vm/evmtypes"
 	"blockConcur/rwset"
 	"blockConcur/state"
+	"blockConcur/types"
+	"blockConcur/utils"
 	"fmt"
 	"sync"
 )
@@ -115,16 +117,18 @@ func (pl *ProcessorList) Size() int {
 func (pl *ProcessorList) Execute() {
 	defer pl.wg.Done()
 	evm := vm.NewEVM(pl.execCtx.BlockCtx, evmtypes.TxContext{}, pl.execCtx.ExecState, pl.execCtx.ChainCfg, vm.Config{})
+	deferedTasks := make(types.Tasks, 0)
 	for cur := pl.head.Next; cur != nil; cur = cur.Next {
 		task := cur.Task
 		if task.Msg == nil {
 			continue
 		}
 		msg := task.Msg
+		var newRwSet *rwset.RwSet
 		if pl.execCtx.EarlyAbort {
 			pl.execCtx.SetTask(task, nil)
 		} else {
-			newRwSet := rwset.NewRwSet()
+			newRwSet = rwset.NewRwSet()
 			pl.execCtx.SetTask(task, newRwSet)
 		}
 		evm.TxContext = pl.execCtx.TxCtx
@@ -145,7 +149,7 @@ func (pl *ProcessorList) Execute() {
 		if err == nil {
 			pl.totalGas += res.UsedGas
 		} else if _, ok := err.(*state.InvalidError); ok {
-			// collect the invalid txs
+			deferedTasks = append(deferedTasks, task)
 		}
 
 		/* This code section is used for debugging
@@ -155,10 +159,32 @@ func (pl *ProcessorList) Execute() {
 			}
 		}
 		*/
+		if newRwSet != nil {
+			task.RwSet = newRwSet
+		}
 		pl.execCtx.ExecState.Commit()
 	}
+	pl.totalGas += processDeferedTasks(deferedTasks, pl.execCtx, evm, pl.execCtx.EarlyAbort)
 }
 
 func (pl *ProcessorList) GetGas() uint64 {
 	return pl.totalGas
+}
+
+// process the defered tasks
+// if early_abort is true, we will serial execute the defered tasks (tasks do not carry out the rwset)
+// TODO: if early_abort is false, we will parallel execute the defered tasks with blockConcur, which can handle the inaccurate rwset problem
+func processDeferedTasks(deferedTasks types.Tasks, execCtx *eutils.ExecContext, evm *vm.EVM, is_serial bool) uint64 {
+	totalGas := uint64(0)
+	for _, task := range deferedTasks {
+		// give task a new ID, the incarnation number will be set to 1
+		task.Tid = utils.NewID(task.Tid.BlockNumber, task.Tid.TxIndex, 1)
+		msg := task.Msg
+		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
+		if err == nil {
+			execCtx.ExecState.Commit()
+			totalGas += res.UsedGas
+		}
+	}
+	return totalGas
 }

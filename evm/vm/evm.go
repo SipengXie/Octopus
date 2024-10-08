@@ -26,7 +26,6 @@ import (
 
 	"blockConcur/evm/vm/evmtypes"
 
-	"github.com/ledgerwatch/erigon/common/u256"
 	"github.com/ledgerwatch/erigon/crypto"
 	"github.com/ledgerwatch/erigon/params"
 )
@@ -222,7 +221,7 @@ func (evm *EVM) call(typ OpCode, caller ContractRef, addr libcommon.Address, inp
 		// This doesn't matter on Mainnet, where all empties are gone at the time of Byzantium,
 		// but is the correct thing to do and matters on other networks, in tests, and potential
 		// future scenarios
-		evm.intraBlockState.AddBalance(addr, u256.Num0)
+		// evm.intraBlockState.AddBalance(addr, u256.Num0)
 	}
 	if evm.config.Debug {
 		v := value

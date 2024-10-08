@@ -11,6 +11,21 @@ const MAXUINT64 = ^uint64(0) >> 1
 
 type Method int
 
+func (m Method) String() string {
+	switch m {
+	case EFT:
+		return "EFT"
+	case CT:
+		return "CT"
+	case CPTL:
+		return "CPTL"
+	case CPOP:
+		return "CPOP"
+	default:
+		return "Unknown"
+	}
+}
+
 const (
 	EFT Method = iota
 	CT

@@ -51,9 +51,9 @@ func GenerateAccurateRwSets(txs types2.Transactions, header *types2.Header, head
 			}
 		}
 		*/
-		if len(task.Msg.AccessList()) > 0 {
-			mergeAccessList(task.Msg.AccessList(), newRwSet)
-		}
+		// if len(task.Msg.AccessList()) > 0 {
+		// 	mergeAccessList(task.Msg.AccessList(), newRwSet)
+		// }
 		task.RwSet = newRwSet
 		execState.Commit()
 	}

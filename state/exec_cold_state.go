@@ -178,6 +178,10 @@ func (s *ExecColdState) GetPrize(TxIdx *utils.ID) *uint256.Int {
 // if we entered Commit function, then the localwrite will merge to
 // the output_predict, and update the inner_state utilize the new output_predict
 func (s *ExecColdState) Commit(lw *localWrite, coinbase common.Address, TxIdx *utils.ID) {
+	if len(s.output_predict.data) == 0 {
+		s.commitWithoutOutput(lw, coinbase, TxIdx)
+		return
+	}
 	prize := lw.getPrize()
 	pVersion := s.output_predict.data["prize"]
 	for key, version := range s.output_predict.data {
@@ -203,4 +207,24 @@ func (s *ExecColdState) Abort() {
 	for _, version := range s.output_predict.data {
 		version.Settle(mv.Ignore, nil)
 	}
+}
+
+// this function is used for serial execution committment
+// we will generate versions for the TxIdx and install them to the version chain
+func (s *ExecColdState) commitWithoutOutput(lw *localWrite, coinbase common.Address, TxIdx *utils.ID) {
+	prize := lw.getPrize()
+	pVersion := mv.NewVersion(prize, TxIdx, mv.Committed)
+	s.inner_state.InsertVersion("prize", pVersion)
+	s.inner_state.UpdatePrize(pVersion, prize)
+	for addr, cache := range lw.storage {
+		for hash, value := range cache {
+			version := mv.NewVersion(value, TxIdx, mv.Committed)
+			s.inner_state.InsertVersion(utils.MakeKey(addr, hash), version)
+			s.inner_state.Update(version, utils.MakeKey(addr, hash), value)
+			if hash == utils.BALANCE && addr == coinbase {
+				s.inner_state.PrunePrize(TxIdx)
+			}
+		}
+	}
+
 }

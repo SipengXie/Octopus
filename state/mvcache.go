@@ -188,7 +188,7 @@ func (mvs *MvCache) GarbageCollection(number uint64, startIdx int, balanceUpdate
 	prize := mvs.FetchPrize(utils.EndID)
 	if !prize.IsZero() {
 		balance := mvs.Fetch(mvs.coinbase, utils.BALANCE).(*uint256.Int)
-		newBalance := balance.Add(balance, prize)
+		newBalance := new(uint256.Int).Add(prize, balance)
 		version := mv.NewVersion(newBalance, pCId, mv.Committed)
 		key := utils.MakeKey(mvs.coinbase, utils.BALANCE)
 		vc, _ := mvs.get_or_new_vc(key)
