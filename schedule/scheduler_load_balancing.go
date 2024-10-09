@@ -21,11 +21,15 @@ func NewSchedulerLOBA(graph *graph.Graph, processors Processors) *SchedulerLOBA 
 	}
 }
 
-// function schedule, accoring to the graph, choose task from the graph with the smallest EST as
+func (s *SchedulerLOBA) Makespan() uint64 {
+	return s.makespan
+}
+
+// function Schedule, accoring to the graph, choose task from the graph with the smallest EST as
 // the priority, and choose the processor with the smallest eft.
 // The processor does not implement the insertion-base policy (IBP), but it is does not need
 // as the task is scheduled in the order of EST.
-func (s *SchedulerLOBA) schedule() {
+func (s *SchedulerLOBA) Schedule() {
 	// using priority queue, the priority is the EST
 	tobe_scheduled := make(PriorityTaskQueue, 0)
 	mapIndegree := make(map[*utils.ID]uint)

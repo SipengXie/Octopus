@@ -333,7 +333,7 @@ func (sdb *IntraBlockState) GetCodeSize(addr libcommon.Address) int {
 func (sdb *IntraBlockState) GetCodeHash(addr libcommon.Address) libcommon.Hash {
 	stateObject := sdb.getStateObject(addr)
 	if stateObject == nil || stateObject.deleted {
-		return libcommon.Hash{}
+		return emptyCodeHash
 	}
 	return libcommon.BytesToHash(stateObject.CodeHash())
 }

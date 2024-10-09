@@ -4,7 +4,6 @@ import (
 	"blockConcur/rwset"
 	"blockConcur/types"
 	"blockConcur/utils"
-	"bytes"
 	"fmt"
 	"sort"
 
@@ -160,6 +159,9 @@ func (s *ExecState) CreateAccount(addr common.Address, contract_created bool) {
 }
 
 func (s *ExecState) SubBalance(addr common.Address, amount *uint256.Int) {
+	if amount.IsZero() {
+		return
+	}
 	balance := s.GetBalance(addr)
 	newBalance := new(uint256.Int).Set(balance)
 	newBalance.Sub(newBalance, amount)
@@ -167,6 +169,9 @@ func (s *ExecState) SubBalance(addr common.Address, amount *uint256.Int) {
 }
 
 func (s *ExecState) AddBalance(addr common.Address, amount *uint256.Int) {
+	if amount.IsZero() {
+		return
+	}
 	balance := s.GetBalance(addr)
 	newBalance := new(uint256.Int).Set(balance)
 	newBalance.Add(newBalance, amount)
@@ -349,44 +354,44 @@ func (s *ExecState) SetTransientState(addr common.Address, key common.Hash, valu
 func (s *ExecState) Selfdestruct(addr common.Address) bool {
 	s.is_valid_write(addr, utils.EXIST)
 	s.is_valid_write(addr, utils.BALANCE)
-	s.is_valid_write(addr, utils.NONCE)
-	s.is_valid_write(addr, utils.CODE)
-	s.is_valid_write(addr, utils.CODEHASH)
+	// s.is_valid_write(addr, utils.NONCE)
+	// s.is_valid_write(addr, utils.CODE)
+	// s.is_valid_write(addr, utils.CODEHASH)
 	if !s.Exist(addr) {
 		return false
 	}
 	s.NewRwSet.AddWriteSet(addr, utils.EXIST)
 	s.NewRwSet.AddWriteSet(addr, utils.BALANCE)
-	s.NewRwSet.AddWriteSet(addr, utils.NONCE)
-	s.NewRwSet.AddWriteSet(addr, utils.CODE)
-	s.NewRwSet.AddWriteSet(addr, utils.CODEHASH)
+	// s.NewRwSet.AddWriteSet(addr, utils.NONCE)
+	// s.NewRwSet.AddWriteSet(addr, utils.CODE)
+	// s.NewRwSet.AddWriteSet(addr, utils.CODEHASH)
 	prev, ok1 := s.LocalWriter.hasSelfdestructed(addr)
 	prevBalance, ok2 := s.LocalWriter.getBalance(addr)
 	if !ok2 {
 		prevBalance = uint256.NewInt(0)
 	}
-	prevNonce, ok3 := s.LocalWriter.getNonce(addr)
-	prevCode, ok4 := s.LocalWriter.getCode(addr)
-	prevHash, ok5 := s.LocalWriter.getCodeHash(addr)
+	// prevNonce, ok3 := s.LocalWriter.getNonce(addr)
+	// prevCode, ok4 := s.LocalWriter.getCode(addr)
+	// prevHash, ok5 := s.LocalWriter.getCodeHash(addr)
 
 	s.journal.append(selfdestructChange{
-		account:        &addr,
-		prev:           !prev,
-		prevbalance:    *prevBalance,
-		prevnonce:      prevNonce,
-		prevcode:       prevCode,
-		prevhash:       prevHash,
-		found_exist:    ok1,
-		found_balance:  ok2,
-		found_nonce:    ok3,
-		found_code:     ok4,
-		found_codehash: ok5,
+		account:     &addr,
+		prev:        !prev,
+		prevbalance: *prevBalance,
+		// prevnonce:      prevNonce,
+		// prevcode:       prevCode,
+		// prevhash:       prevHash,
+		found_exist:   ok1,
+		found_balance: ok2,
+		// found_nonce:    ok3,
+		// found_code:     ok4,
+		// found_codehash: ok5,
 	})
 	s.LocalWriter.delete(addr)
 	s.LocalWriter.setBalance(addr, uint256.NewInt(0))
-	s.LocalWriter.setNonce(addr, 0)
-	s.LocalWriter.setCode(addr, nil)
-	s.LocalWriter.setCodeHash(addr, common.Hash{})
+	// s.LocalWriter.setNonce(addr, 0)
+	// s.LocalWriter.setCode(addr, nil)
+	// s.LocalWriter.setCodeHash(addr, crypto.Keccak256Hash(nil))
 	return true
 }
 
@@ -421,6 +426,9 @@ func (s *ExecState) Empty(addr common.Address) bool {
 	s.NewRwSet.AddReadSet(addr, utils.BALANCE)
 	s.NewRwSet.AddReadSet(addr, utils.NONCE)
 	s.NewRwSet.AddReadSet(addr, utils.CODEHASH)
+	if addr == s.Coinbase && s.globalIdx.TxIndex != 0 {
+		return false
+	}
 	exist := s.Exist(addr)
 	if !exist {
 		return true
@@ -429,7 +437,7 @@ func (s *ExecState) Empty(addr common.Address) bool {
 	nonce := s.GetNonce(addr)
 	codeHash := s.GetCodeHash(addr)
 
-	return balance.IsZero() && nonce == 0 && bytes.Equal(codeHash[:], emptyCodeHash)
+	return balance.IsZero() && nonce == 0 && isEmptyCodeHash(codeHash)
 }
 
 // things about access list are costy and not used in the current implementation

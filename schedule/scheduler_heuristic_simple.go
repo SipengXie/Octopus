@@ -21,7 +21,11 @@ func NewSchedulerHESI(graph *graph.Graph, processors Processors) *SchedulerHESI 
 	}
 }
 
-func (s *SchedulerHESI) schedule() {
+func (s *SchedulerHESI) Makespan() uint64 {
+	return s.makespan
+}
+
+func (s *SchedulerHESI) Schedule() {
 	pq := make(PriorityTaskQueue, 0)
 	// prioritze tasks with it's cost
 	tmap := make(map[*utils.ID]*TaskWrapper)
@@ -29,7 +33,7 @@ func (s *SchedulerHESI) schedule() {
 	for id, v := range s.graph.Vertices {
 		tWrap := &TaskWrapper{
 			Task:     v.Task,
-			Priority: v.Task.Cost,
+			Priority: ^v.Task.Cost,
 		}
 		tmap[id] = tWrap
 		mapIndegree[id] = v.InDegree

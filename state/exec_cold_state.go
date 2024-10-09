@@ -11,7 +11,14 @@ import (
 	"github.com/ledgerwatch/erigon/crypto"
 )
 
-var emptyCodeHash = crypto.Keccak256(nil)
+var emptyCodeHash = crypto.Keccak256Hash(nil)
+
+func isEmptyCodeHash(codeHash common.Hash) bool {
+	if codeHash == (common.Hash{}) {
+		return true
+	}
+	return bytes.Equal(codeHash[:], emptyCodeHash[:])
+}
 
 type versionMap struct {
 	data map[string]*mv.Version
@@ -164,7 +171,7 @@ func (s *ExecColdState) Empty(addr common.Address) bool {
 	balance := s.GetBalance(addr)
 	nonce := s.GetNonce(addr)
 	codeHash := s.GetCodeHash(addr)
-	return balance.IsZero() && nonce == 0 && bytes.Equal(codeHash[:], emptyCodeHash)
+	return balance.IsZero() && nonce == 0 && isEmptyCodeHash(codeHash)
 }
 
 func (s *ExecColdState) HasSelfdestructed(addr common.Address) bool {

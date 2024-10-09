@@ -50,7 +50,6 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 			if !ok {
 				balance = uint256.NewInt(0)
 			}
-			// amount need to be multiplied by 10^9
 			factor := new(uint256.Int).SetUint64(1000000000)
 			amount := new(uint256.Int).Mul(new(uint256.Int).SetUint64(withdrawal.Amount), factor)
 			balance.Add(balance, amount)
@@ -61,12 +60,28 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 			newRwSet := rwset.NewRwSet()
 			execCtx.SetTask(task, newRwSet)
 			evm := vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
+
+			// var tracer vm.EVMLogger
+			// var evm *vm.EVM
+			// if task.TxHash == common.HexToHash("0xaf37a7093d37b834a1f3cd04a03beb6c4dbb545bdb43fcaa8a3be161e5c0de5a") {
+			// 	tracer = helper.NewStructLogger(&helper.LogConfig{})
+			// 	evm = vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{Debug: true, Tracer: tracer})
+			// } else {
+			// 	evm = vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
+			// }
+
 			result, err := core.ApplyMessage(evm, task.Msg, new(core.GasPool).AddGas(task.Msg.Gas()).AddBlobGas(task.Msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 			if err != nil {
 				panic(fmt.Sprintf("Error: %v, Transaction hash: %v", err, task.TxHash))
 			}
 			task.RwSet = newRwSet
 			execState.Commit()
+
+			// if tracer != nil {
+			// 	if structLogs, ok := tracer.(*helper.StructLogger); ok {
+			// 		structLogs.Flush(task.TxHash)
+			// 	}
+			// }
 
 			totalGas += result.UsedGas
 		}

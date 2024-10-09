@@ -17,7 +17,6 @@
 package state
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"math/big"
@@ -32,8 +31,6 @@ import (
 
 	state2 "github.com/ledgerwatch/erigon/core/state"
 )
-
-var emptyCodeHashH = libcommon.BytesToHash(emptyCodeHash)
 
 type Code []byte
 
@@ -123,7 +120,7 @@ type stateObject struct {
 
 // empty returns whether the account is considered empty.
 func (so *stateObject) empty() bool {
-	return so.data.Nonce == 0 && so.data.Balance.IsZero() && bytes.Equal(so.data.CodeHash[:], emptyCodeHash)
+	return so.data.Nonce == 0 && so.data.Balance.IsZero() && isEmptyCodeHash(libcommon.BytesToHash(so.data.CodeHash[:]))
 }
 
 // newObject creates a state object.
@@ -141,7 +138,7 @@ func newObject(db *IntraBlockState, address libcommon.Address, data, original *a
 		so.data.Initialised = true
 	}
 	if so.data.CodeHash == (libcommon.Hash{}) {
-		so.data.CodeHash = emptyCodeHashH
+		so.data.CodeHash = emptyCodeHash
 	}
 	if so.data.Root == (libcommon.Hash{}) {
 		so.data.Root = trie.EmptyRoot
@@ -372,7 +369,7 @@ func (so *stateObject) Code() []byte {
 	if so.code != nil {
 		return so.code
 	}
-	if bytes.Equal(so.CodeHash(), emptyCodeHash) {
+	if isEmptyCodeHash(libcommon.BytesToHash(so.CodeHash())) {
 		return nil
 	}
 	so.db.stateReaderLock.Lock()

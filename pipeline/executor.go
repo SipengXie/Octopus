@@ -46,17 +46,17 @@ func Execute(processors schedule.Processors, withdraws types.Withdrawals, header
 	balanceUpdate := make(map[common.Address]*uint256.Int)
 	// deal with withdrawals
 	// balance update
-	// for _, withdrawal := range withdraws {
-	// 	balance, ok := balanceUpdate[withdrawal.Address]
-	// 	if !ok {
-	// 		balance = uint256.NewInt(0)
-	// 	}
-	// 	// amount need to be multiplied by 10^9
-	// 	factor := new(uint256.Int).SetUint64(1000000000)
-	// 	amount := new(uint256.Int).Mul(new(uint256.Int).SetUint64(withdrawal.Amount), factor)
-	// 	balance.Add(balance, amount)
-	// 	balanceUpdate[withdrawal.Address] = balance
-	// }
+	for _, withdrawal := range withdraws {
+		balance, ok := balanceUpdate[withdrawal.Address]
+		if !ok {
+			balance = uint256.NewInt(0)
+		}
+		// amount need to be multiplied by 10^9
+		factor := new(uint256.Int).SetUint64(1000000000)
+		amount := new(uint256.Int).Mul(new(uint256.Int).SetUint64(withdrawal.Amount), factor)
+		balance.Add(balance, amount)
+		balanceUpdate[withdrawal.Address] = balance
+	}
 
 	for _, processor := range processors {
 		ctx := eutils.NewExecContext(header, headers, chainCfg, early_abort)
@@ -85,7 +85,6 @@ func Execute(processors schedule.Processors, withdraws types.Withdrawals, header
 func (e *Executor) Run() {
 	var elapsed float64
 	for input := range e.inputChan {
-		// fmt.Println("Executor")
 		if input.Flag == END {
 			e.wg.Done()
 			fmt.Println("Concurrent Execution Cost:", elapsed, "s")

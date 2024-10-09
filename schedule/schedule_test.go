@@ -162,7 +162,7 @@ func TestListHESI(t *testing.T) {
 	}
 
 	hesiScheduler := NewSchedulerHESI(graph, processors)
-	hesiScheduler.schedule()
+	hesiScheduler.Schedule()
 	for _, processor := range processors {
 		processor.Print()
 	}
@@ -177,7 +177,7 @@ func TestListLOBA(t *testing.T) {
 		processors[i] = NewProcessorList()
 	}
 	lobaScheduler := NewSchedulerLOBA(graph, processors)
-	lobaScheduler.schedule()
+	lobaScheduler.Schedule()
 	for _, processor := range processors {
 		processor.Print()
 	}
@@ -269,7 +269,7 @@ func TestSimpleHESI(t *testing.T) {
 	}
 
 	hesiScheduler := NewSchedulerHESI(graph, processors)
-	hesiScheduler.schedule()
+	hesiScheduler.Schedule()
 	for _, processor := range processors {
 		processor.Print()
 	}
@@ -284,7 +284,7 @@ func TestSimpleLOBA(t *testing.T) {
 		processors[i] = NewProcessorSimple()
 	}
 	lobaScheduler := NewSchedulerLOBA(graph, processors)
-	lobaScheduler.schedule()
+	lobaScheduler.Schedule()
 	for _, processor := range processors {
 		processor.Print()
 	}

@@ -2,7 +2,6 @@ package state
 
 import (
 	"blockConcur/utils"
-	"fmt"
 
 	"github.com/alphadose/haxmap"
 	"github.com/holiman/uint256"
@@ -74,9 +73,6 @@ func (f *FakeInnerState) Selfdestruct(addr common.Address) bool {
 }
 
 func (f *FakeInnerState) SetBalance(addr common.Address, value *uint256.Int) {
-	if addr.Hex() == "0x0000000000000000000000000000000000000000" {
-		fmt.Println(value.String())
-	}
 	key := utils.MakeKey(addr, utils.BALANCE)
 	f.storage.Set(key, value)
 }

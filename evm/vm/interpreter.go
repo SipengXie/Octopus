@@ -264,6 +264,9 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		op = contract.GetOp(_pc)
 		operation := in.jt[op]
 		cost = operation.constantGas // For tracing
+		// if in.evm.TxContext.TxHash.Hex() == "0xaf37a7093d37b834a1f3cd04a03beb6c4dbb545bdb43fcaa8a3be161e5c0de5a" && _pc == 873 && in.depth == 1 {
+		// 	fmt.Println("debug")
+		// }
 		// Validate stack
 		if sLen := locStack.Len(); sLen < operation.numPop {
 			return nil, &ErrStackUnderflow{stackLen: sLen, required: operation.numPop}

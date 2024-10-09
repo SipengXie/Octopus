@@ -126,7 +126,11 @@ func (mvc *MvCache) Validate(ibs *IntraBlockState) *utils.ID {
 			ibs.GetState(addr, &hash, &stateValue)
 			ibsValue = &stateValue
 		}
-
+		if hash == utils.CODEHASH {
+			if isEmptyCodeHash(ibsValue.(common.Hash)) && isEmptyCodeHash(lastCommit.Data.(common.Hash)) {
+				continue
+			}
+		}
 		if !reflect.DeepEqual(ibsValue, lastCommit.Data) {
 			if lastCommit.Tid.Less(minTid) {
 				minTid = lastCommit.Tid

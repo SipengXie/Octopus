@@ -156,9 +156,7 @@ func (lw *localWrite) setTxContext(thash, bhash common.Hash, txIndex int) {
 }
 
 func (lw *localWrite) delete(addr common.Address) {
-	if _, ok := lw.storage[addr]; !ok {
-		lw.storage[addr] = make(map[common.Hash]interface{})
-	}
+	lw.storage[addr] = make(map[common.Hash]interface{})
 	lw.storage[addr][utils.EXIST] = false
 }
 

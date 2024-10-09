@@ -147,17 +147,17 @@ type (
 		prev    *stateObject
 	}
 	selfdestructChange struct {
-		account        *libcommon.Address
-		prev           bool // whether account had already selfdestructed
-		prevbalance    uint256.Int
-		prevnonce      uint64
-		prevcode       []byte
-		prevhash       libcommon.Hash
-		found_exist    bool
-		found_balance  bool
-		found_nonce    bool
-		found_code     bool
-		found_codehash bool
+		account     *libcommon.Address
+		prev        bool // whether account had already selfdestructed
+		prevbalance uint256.Int
+		// prevnonce      uint64
+		// prevcode       []byte
+		// prevhash       libcommon.Hash
+		found_exist   bool
+		found_balance bool
+		// found_nonce    bool
+		// found_code     bool
+		// found_codehash bool
 	}
 
 	// Changes to individual accounts.
@@ -263,21 +263,21 @@ func (ch selfdestructChange) revertExec(s *ExecState) {
 	} else {
 		s.LocalWriter.storage[*ch.account][utils.BALANCE] = &ch.prevbalance
 	}
-	if !ch.found_nonce {
-		delete(s.LocalWriter.storage[*ch.account], utils.NONCE)
-	} else {
-		s.LocalWriter.storage[*ch.account][utils.NONCE] = ch.prevnonce
-	}
-	if !ch.found_code {
-		delete(s.LocalWriter.storage[*ch.account], utils.CODE)
-	} else {
-		s.LocalWriter.storage[*ch.account][utils.CODE] = ch.prevcode
-	}
-	if !ch.found_codehash {
-		delete(s.LocalWriter.storage[*ch.account], utils.CODEHASH)
-	} else {
-		s.LocalWriter.storage[*ch.account][utils.CODEHASH] = ch.prevhash
-	}
+	// if !ch.found_nonce {
+	// 	delete(s.LocalWriter.storage[*ch.account], utils.NONCE)
+	// } else {
+	// 	s.LocalWriter.storage[*ch.account][utils.NONCE] = ch.prevnonce
+	// }
+	// if !ch.found_code {
+	// 	delete(s.LocalWriter.storage[*ch.account], utils.CODE)
+	// } else {
+	// 	s.LocalWriter.storage[*ch.account][utils.CODE] = ch.prevcode
+	// }
+	// if !ch.found_codehash {
+	// 	delete(s.LocalWriter.storage[*ch.account], utils.CODEHASH)
+	// } else {
+	// 	s.LocalWriter.storage[*ch.account][utils.CODEHASH] = ch.prevhash
+	// }
 	if len(s.LocalWriter.storage[*ch.account]) == 0 {
 		delete(s.LocalWriter.storage, *ch.account)
 	}
