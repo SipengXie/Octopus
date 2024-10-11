@@ -31,10 +31,11 @@ type ProcessorTree struct {
 	Tasks       ASTTaskQueue
 	SlotManager *utils.SlotManager
 
-	execCtx  *eutils.ExecContext
-	wg       *sync.WaitGroup
-	totalGas uint64
-	size     int
+	execCtx      *eutils.ExecContext
+	wg           *sync.WaitGroup
+	totalGas     uint64
+	size         int
+	deferedTasks types.Tasks
 }
 
 func NewProcessorTree() *ProcessorTree {
@@ -118,7 +119,6 @@ func (pt *ProcessorTree) Execute() {
 		task.Wait() // waiting for the task to be ready
 		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err == nil {
-			pt.execCtx.ExecState.Commit()
 			pt.totalGas += res.UsedGas
 		} else if _, ok := err.(*state.InvalidError); ok {
 			deferedTasks = append(deferedTasks, task)
@@ -128,9 +128,13 @@ func (pt *ProcessorTree) Execute() {
 		}
 		pt.execCtx.ExecState.Commit()
 	}
-	pt.totalGas += processDeferedTasks(deferedTasks, pt.execCtx, evm, pt.execCtx.EarlyAbort)
+	pt.deferedTasks = deferedTasks
 }
 
 func (pt *ProcessorTree) GetGas() uint64 {
 	return pt.totalGas
+}
+
+func (pt *ProcessorTree) GetDeferedTasks() types.Tasks {
+	return pt.deferedTasks
 }

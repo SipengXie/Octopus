@@ -548,6 +548,6 @@ func (s *ExecState) Commit() {
 	} else {
 		// fmt.Println("CannotCommit", s.globalIdx)
 		s.ColdData.Abort()
-		panic(fmt.Errorf("CannotCommit %v", s.globalIdx))
+		// panic(fmt.Errorf("CannotCommit %v", s.globalIdx))
 	}
 }

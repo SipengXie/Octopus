@@ -29,7 +29,7 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 
 	cfg := params.MainnetChainConfig
 	ibs := env.GetIBS(uint64(startNum), dbTx)
-	mvCache := state.NewMvCache(ibs, cacheSize)
+	mvCache := state.NewMvCache(ibs, cacheSize, uint64(startNum))
 
 	for blockNum := startNum; blockNum < endNum; blockNum++ {
 		block, header := env.GetBlockAndHeader(uint64(blockNum))

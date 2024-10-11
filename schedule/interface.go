@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"blockConcur/eutils"
+	"blockConcur/types"
 	"sync"
 )
 
@@ -20,6 +21,7 @@ type Processor interface {
 	Execute()
 	SetExecCtx(*eutils.ExecContext, *sync.WaitGroup)
 	GetGas() uint64
+	GetDeferedTasks() types.Tasks
 }
 
 type Processors []Processor

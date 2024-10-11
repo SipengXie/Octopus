@@ -39,7 +39,7 @@ func GenerateAccurateRwSets(txs types2.Transactions, header *types2.Header, head
 		}
 		*/
 
-		_, err := core.ApplyMessage(evm, task.Msg, new(core.GasPool).AddGas(task.Msg.Gas()).AddBlobGas(task.Msg.BlobGas()), true /* refunds */, false /* gasBailout */)
+		res, err := core.ApplyMessage(evm, task.Msg, new(core.GasPool).AddGas(task.Msg.Gas()).AddBlobGas(task.Msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err != nil {
 			panic(fmt.Sprintf("error: %v, txHash:%v", err, task.TxHash))
 		}
@@ -54,6 +54,7 @@ func GenerateAccurateRwSets(txs types2.Transactions, header *types2.Header, head
 		// if len(task.Msg.AccessList()) > 0 {
 		// 	mergeAccessList(task.Msg.AccessList(), newRwSet)
 		// }
+		task.Cost = res.UsedGas
 		task.RwSet = newRwSet
 		execState.Commit()
 	}

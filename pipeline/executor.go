@@ -2,9 +2,15 @@ package pipeline
 
 import (
 	"blockConcur/eutils"
+	core "blockConcur/evm"
+	"blockConcur/evm/vm"
+	"blockConcur/evm/vm/evmtypes"
 	"blockConcur/schedule"
 	"blockConcur/state"
+	types2 "blockConcur/types"
+	"blockConcur/utils"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -16,8 +22,6 @@ import (
 
 type Executor struct {
 	totalGas    uint64
-	headers     []*types.Header
-	header      *types.Header
 	chainCfg    *chain.Config
 	mvCache     *state.MvCache
 	early_abort bool
@@ -25,19 +29,37 @@ type Executor struct {
 	inputChan   chan *ScheduleMessage
 }
 
-func NewExecutor(headers []*types.Header, header *types.Header,
-	mvCache *state.MvCache, chainCfg *chain.Config,
+func NewExecutor(mvCache *state.MvCache, chainCfg *chain.Config,
 	early_abort bool, wg *sync.WaitGroup,
 	in chan *ScheduleMessage) *Executor {
 	return &Executor{
-		headers:     headers,
-		header:      header,
 		chainCfg:    chainCfg,
 		mvCache:     mvCache,
 		early_abort: early_abort,
 		inputChan:   in,
 		wg:          wg,
 	}
+}
+
+// process the defered tasks
+// if early_abort is true, we will serial execute the defered tasks (tasks do not carry out the rwset)
+// TODO: if early_abort is false, we will parallel execute the defered tasks with blockConcur, which can handle the inaccurate rwset problem
+func processDeferedTasks(deferedTasks types2.Tasks, execCtx *eutils.ExecContext, is_serial bool) uint64 {
+	evm := vm.NewEVM(execCtx.BlockCtx, evmtypes.TxContext{}, execCtx.ExecState, execCtx.ChainCfg, vm.Config{})
+	totalGas := uint64(0)
+	for _, task := range deferedTasks {
+		// give task a new ID, the incarnation number will be set to 1
+		task.Tid = utils.NewID(task.Tid.BlockNumber, task.Tid.TxIndex, 1)
+		execCtx.SetTask(task, nil)
+		evm.TxContext = execCtx.TxCtx
+		msg := task.Msg
+		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
+		if err == nil {
+			execCtx.ExecState.Commit()
+			totalGas += res.UsedGas
+		}
+	}
+	return totalGas
 }
 
 func Execute(processors schedule.Processors, withdraws types.Withdrawals, header *types.Header, headers []*types.Header, chainCfg *chain.Config, early_abort bool, mvCache *state.MvCache) (float64, uint64) {
@@ -72,9 +94,24 @@ func Execute(processors schedule.Processors, withdraws types.Withdrawals, header
 	}
 	wg.Wait()
 
+	var totalGas uint64
+	// deal with defered tasks
+	deferedTasks := make(types2.Tasks, 0)
+	for _, processor := range processors {
+		deferedTasks = append(deferedTasks, processor.GetDeferedTasks()...)
+	}
+	if len(deferedTasks) > 0 {
+		// sort deferedTasks by Tid
+		sort.Slice(deferedTasks, func(i, j int) bool {
+			return deferedTasks[i].Tid.Less(deferedTasks[j].Tid)
+		})
+		ctx := eutils.NewExecContext(header, headers, chainCfg, early_abort)
+		ctx.ExecState = state.NewForRun(mvCache, header.Coinbase, early_abort)
+		totalGas += processDeferedTasks(deferedTasks, ctx, early_abort)
+	}
+
 	mvCache.GarbageCollection(header.Number.Uint64(), taskNum, balanceUpdate)
 	cost := time.Since(st).Seconds()
-	totalGas := uint64(0)
 	for _, processor := range processors {
 		totalGas += processor.GetGas()
 	}
@@ -96,7 +133,7 @@ func (e *Executor) Run() {
 		// while the exec state maintains the localwrite
 		// init execCtx for each processor
 		processors := input.Processors
-		cost, gas := Execute(processors, input.Withdraws, e.header, e.headers, e.chainCfg, e.early_abort, e.mvCache)
+		cost, gas := Execute(processors, input.Withdraws, input.Header, input.Headers, e.chainCfg, e.early_abort, e.mvCache)
 		elapsed += cost
 		e.totalGas += gas
 	}

@@ -69,13 +69,8 @@ func GeneratePools(cache *state.MvCache, fetchPoolSize, ivPoolSize int) (fetchPo
 		for key := range task.RwSet.ReadSet {
 			// TODO: if we change this version to the last block's last inserted version,
 			// we could achieve inter-block concurrency control. However, we have
-			// two problems:
 			// (1) the block root generation problem.
-			// (2) prefetch_1 -> graph_1 -> prefetch_2 -> graph_2, the prefetch_2 should
-			// happen after graph_1. This problem does not exist as prefetch_2 is happend after prefetch_1.
-			// The MVCache contains all versions generated in the previous block.
-			// Now, no need for inter-block concurrency.
-			v := cache.GetCommittedVersion(key)
+			v := cache.GetLastBlockCommit(key)
 			task.AddReadVersion(key, v)
 		}
 		// adding task.rwset.write_set to task.WriteVersions and install them to the cache.
@@ -137,7 +132,7 @@ func (g *Prefetcher) Run() {
 			close(g.OutputChan)
 			g.FetchPool.Release()
 			g.Wg.Done()
-			fmt.Println("Prefetch Cost:", elapsed, "ms")
+			fmt.Println("Prefetch Cost:", elapsed, "s")
 			return
 		}
 
@@ -150,6 +145,9 @@ func (g *Prefetcher) Run() {
 			Flag:         START,
 			Tasks:        tasks,
 			RwAccessedBy: rwAccessedBy,
+			Header:       input.Header,
+			Headers:      input.Headers,
+			Withdraws:    input.Withdraws,
 		}
 		g.OutputChan <- outMessage
 	}

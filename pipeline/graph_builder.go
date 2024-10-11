@@ -92,7 +92,7 @@ func (g *GraphBuilder) Run() {
 			g.OutputChan <- outMessage
 			close(g.OutputChan)
 			g.Wg.Done()
-			fmt.Println("Graph Generation Cost:", elapsed, "ms")
+			fmt.Println("Graph Generation Cost:", elapsed, "s")
 			return
 		}
 
@@ -100,8 +100,11 @@ func (g *GraphBuilder) Run() {
 		elapsed += cost
 
 		outMessage := &GraphMessage{
-			Flag:  START,
-			Graph: graph,
+			Flag:      START,
+			Graph:     graph,
+			Header:    input.Header,
+			Headers:   input.Headers,
+			Withdraws: input.Withdraws,
 		}
 		g.OutputChan <- outMessage
 	}

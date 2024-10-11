@@ -3,7 +3,6 @@ package test
 import (
 	"blockConcur/helper"
 	"blockConcur/pipeline"
-	"blockConcur/schedule"
 	"blockConcur/state"
 	"fmt"
 	"testing"
@@ -20,7 +19,7 @@ func TestRealSchedule(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dbTx.Rollback()
-	mvCache := state.NewMvCache(env.GetIBS(uint64(startNum), dbTx), cacheSize)
+	mvCache := state.NewMvCache(env.GetIBS(uint64(startNum), dbTx), cacheSize, uint64(startNum))
 	fetchPool, ivPool := pipeline.GeneratePools(mvCache, fetchPoolSize, ivPoolSize)
 
 	var totalMakespanOCCDA, totalMakespanQUECC, totalMakespanBlkConcur uint64
@@ -35,25 +34,13 @@ func TestRealSchedule(t *testing.T) {
 		_, rwAccessedBy := pipeline.Prefetch(tasks, fetchPool, ivPool)
 		_, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)
 		totalCriticalPathLen += graph.CriticalPathLen
-		_, _, makespanBlkConcur, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum)
+		_, _, makespanBlkConcur, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.BlkConcur)
 
 		// Using SchedulerHESI
-		processorsHESI := make(schedule.Processors, processorNum)
-		for i := 0; i < processorNum; i++ {
-			processorsHESI[i] = schedule.NewProcessorSimple()
-		}
-		schedulerHESI := schedule.NewSchedulerHESI(graph, processorsHESI)
-		schedulerHESI.Schedule()
-		makespanOCCDA := schedulerHESI.Makespan()
+		_, _, makespanOCCDA, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.OCCDA_MOCK)
 
 		// Using SchedulerLOBA
-		processorsLOBA := make(schedule.Processors, processorNum)
-		for i := 0; i < processorNum; i++ {
-			processorsLOBA[i] = schedule.NewProcessorSimple()
-		}
-		schedulerLOBA := schedule.NewSchedulerLOBA(graph, processorsLOBA)
-		schedulerLOBA.Schedule()
-		makespanQUECC := schedulerLOBA.Makespan()
+		_, _, makespanQUECC, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.QUECC_MOCK)
 
 		totalMakespanOCCDA += makespanOCCDA
 		totalMakespanQUECC += makespanQUECC

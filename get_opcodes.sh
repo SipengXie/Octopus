@@ -2,7 +2,7 @@ curl -X POST -H "Content-Type: application/json" --data '{
   "jsonrpc": "2.0",
   "method": "debug_traceTransaction",
   "params": [
-    "0xaf37a7093d37b834a1f3cd04a03beb6c4dbb545bdb43fcaa8a3be161e5c0de5a",
+    "0x82491091221b3be74ddb85b9351e2dabc8c77582cad4783d8f85dd0ff0d2b73f",
     {
       "tracerConfig": {
         "enableMemory": true,

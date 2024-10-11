@@ -17,19 +17,28 @@ const (
 )
 
 type TaskMessage struct {
-	Flag  FLAG
-	Tasks types.Tasks
+	Flag      FLAG
+	Tasks     types.Tasks
+	Header    *types2.Header
+	Headers   []*types2.Header
+	Withdraws types2.Withdrawals
 }
 
 type BuildGraphMessage struct {
 	Flag         FLAG
 	Tasks        types.Tasks
 	RwAccessedBy *rwset.RwAccessedBy
+	Header       *types2.Header
+	Headers      []*types2.Header
+	Withdraws    types2.Withdrawals
 }
 
 type GraphMessage struct {
-	Flag  FLAG
-	Graph *dag.Graph
+	Flag      FLAG
+	Graph     *dag.Graph
+	Header    *types2.Header
+	Headers   []*types2.Header
+	Withdraws types2.Withdrawals
 }
 
 type ScheduleMessage struct {
@@ -37,4 +46,6 @@ type ScheduleMessage struct {
 	Processors schedule.Processors
 	Makespan   uint64
 	Withdraws  types2.Withdrawals
+	Header     *types2.Header
+	Headers    []*types2.Header
 }

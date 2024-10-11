@@ -264,7 +264,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		op = contract.GetOp(_pc)
 		operation := in.jt[op]
 		cost = operation.constantGas // For tracing
-		// if in.evm.TxContext.TxHash.Hex() == "0xaf37a7093d37b834a1f3cd04a03beb6c4dbb545bdb43fcaa8a3be161e5c0de5a" && _pc == 873 && in.depth == 1 {
+		// if in.evm.TxContext.TxHash.Hex() == "0x82491091221b3be74ddb85b9351e2dabc8c77582cad4783d8f85dd0ff0d2b73f" && _pc == 4251 && in.depth == 2 {
 		// 	fmt.Println("debug")
 		// }
 		// Validate stack

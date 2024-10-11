@@ -2,6 +2,12 @@ package schedule
 
 import (
 	"blockConcur/eutils"
+	core "blockConcur/evm"
+	"blockConcur/evm/vm"
+	"blockConcur/evm/vm/evmtypes"
+	"blockConcur/rwset"
+	"blockConcur/state"
+	"blockConcur/types"
 	"fmt"
 	"sync"
 )
@@ -19,7 +25,11 @@ func (s *simpleEftResult) EFT() uint64 {
 }
 
 type ProcessorSimple struct {
-	Tasks []*TaskWrapper
+	Tasks        []*TaskWrapper
+	execCtx      *eutils.ExecContext
+	wg           *sync.WaitGroup
+	totalGas     uint64
+	deferedTasks types.Tasks
 }
 
 func NewProcessorSimple() *ProcessorSimple {
@@ -29,6 +39,8 @@ func NewProcessorSimple() *ProcessorSimple {
 }
 
 func (p *ProcessorSimple) SetExecCtx(execCtx *eutils.ExecContext, wg *sync.WaitGroup) {
+	p.execCtx = execCtx
+	p.wg = wg
 }
 
 func (p *ProcessorSimple) Print() {
@@ -58,8 +70,44 @@ func (p *ProcessorSimple) Size() int {
 	return len(p.Tasks)
 }
 
-func (p *ProcessorSimple) Execute() {}
+func (p *ProcessorSimple) Execute() {
+	defer p.wg.Done()
+	evm := vm.NewEVM(p.execCtx.BlockCtx, evmtypes.TxContext{}, p.execCtx.ExecState, p.execCtx.ChainCfg, vm.Config{})
+	deferedTasks := make(types.Tasks, 0)
+	for _, tw := range p.Tasks {
+		task := tw.Task
+		if task.Msg == nil {
+			continue
+		}
+		msg := task.Msg
+		var newRwSet *rwset.RwSet
+		if p.execCtx.EarlyAbort {
+			p.execCtx.SetTask(task, nil)
+		} else {
+			newRwSet = rwset.NewRwSet()
+			p.execCtx.SetTask(task, newRwSet)
+		}
+		evm.TxContext = p.execCtx.TxCtx
 
+		task.Wait() // waiting for the task to be ready
+		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
+		if err == nil {
+			p.totalGas += res.UsedGas
+		} else if _, ok := err.(*state.InvalidError); ok {
+			deferedTasks = append(deferedTasks, task)
+		}
+
+		if newRwSet != nil {
+			task.RwSet = newRwSet
+		}
+		p.execCtx.ExecState.Commit()
+	}
+	p.deferedTasks = deferedTasks
+}
 func (p *ProcessorSimple) GetGas() uint64 {
-	return 0
+	return p.totalGas
+}
+
+func (p *ProcessorSimple) GetDeferedTasks() types.Tasks {
+	return p.deferedTasks
 }

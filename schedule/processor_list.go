@@ -8,7 +8,6 @@ import (
 	"blockConcur/rwset"
 	"blockConcur/state"
 	"blockConcur/types"
-	"blockConcur/utils"
 	"fmt"
 	"sync"
 )
@@ -34,11 +33,12 @@ func (l *listEft) EFT() uint64 {
 }
 
 type ProcessorList struct {
-	head     *TaskWrapperNode
-	execCtx  *eutils.ExecContext
-	wg       *sync.WaitGroup
-	totalGas uint64
-	size     int
+	head         *TaskWrapperNode
+	execCtx      *eutils.ExecContext
+	wg           *sync.WaitGroup
+	totalGas     uint64
+	size         int
+	deferedTasks types.Tasks
 }
 
 func NewProcessorList() *ProcessorList {
@@ -133,16 +133,14 @@ func (pl *ProcessorList) Execute() {
 		}
 		evm.TxContext = pl.execCtx.TxCtx
 
-		/* This code section is used for debugging
-		var tracer vm.EVMLogger
-		var evm *vm.EVM
-		if task.TxHash == common.HexToHash("0x83d6a34cf13f93bc418ceb5ced9b61f640a3e936fbd98f6d8c6d4896ab70d12b") {
-			tracer = helper.NewStructLogger(&helper.LogConfig{})
-			evm = vm.NewEVM(pl.execCtx.BlockCtx, pl.execCtx.TxCtx, pl.execCtx.ExecState, pl.execCtx.ChainCfg, vm.Config{Debug: true, Tracer: tracer})
-		} else {
-			evm = vm.NewEVM(pl.execCtx.BlockCtx, pl.execCtx.TxCtx, pl.execCtx.ExecState, pl.execCtx.ChainCfg, vm.Config{})
-		}
-		*/
+		// var tracer vm.EVMLogger
+		// var evm *vm.EVM
+		// if task.TxHash == common.HexToHash("0x82491091221b3be74ddb85b9351e2dabc8c77582cad4783d8f85dd0ff0d2b73f") {
+		// 	tracer = helper.NewStructLogger(&helper.LogConfig{})
+		// 	evm = vm.NewEVM(pl.execCtx.BlockCtx, pl.execCtx.TxCtx, pl.execCtx.ExecState, pl.execCtx.ChainCfg, vm.Config{Debug: true, Tracer: tracer})
+		// } else {
+		// 	evm = vm.NewEVM(pl.execCtx.BlockCtx, pl.execCtx.TxCtx, pl.execCtx.ExecState, pl.execCtx.ChainCfg, vm.Config{})
+		// }
 
 		task.Wait() // waiting for the task to be ready
 		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
@@ -152,39 +150,24 @@ func (pl *ProcessorList) Execute() {
 			deferedTasks = append(deferedTasks, task)
 		}
 
-		/* This code section is used for debugging
-		if task.TxHash == common.HexToHash("0x83d6a34cf13f93bc418ceb5ced9b61f640a3e936fbd98f6d8c6d4896ab70d12b") {
-			if structLogs, ok := tracer.(*helper.StructLogger); ok {
-				structLogs.Flush(task.TxHash)
-			}
-		}
-		*/
+		// if tracer != nil {
+		// 	if structLogs, ok := tracer.(*helper.StructLogger); ok {
+		// 		structLogs.Flush(task.TxHash)
+		// 	}
+		// }
+
 		if newRwSet != nil {
 			task.RwSet = newRwSet
 		}
 		pl.execCtx.ExecState.Commit()
 	}
-	pl.totalGas += processDeferedTasks(deferedTasks, pl.execCtx, evm, pl.execCtx.EarlyAbort)
+	pl.deferedTasks = deferedTasks
 }
 
 func (pl *ProcessorList) GetGas() uint64 {
 	return pl.totalGas
 }
 
-// process the defered tasks
-// if early_abort is true, we will serial execute the defered tasks (tasks do not carry out the rwset)
-// TODO: if early_abort is false, we will parallel execute the defered tasks with blockConcur, which can handle the inaccurate rwset problem
-func processDeferedTasks(deferedTasks types.Tasks, execCtx *eutils.ExecContext, evm *vm.EVM, is_serial bool) uint64 {
-	totalGas := uint64(0)
-	for _, task := range deferedTasks {
-		// give task a new ID, the incarnation number will be set to 1
-		task.Tid = utils.NewID(task.Tid.BlockNumber, task.Tid.TxIndex, 1)
-		msg := task.Msg
-		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
-		if err == nil {
-			execCtx.ExecState.Commit()
-			totalGas += res.UsedGas
-		}
-	}
-	return totalGas
+func (pl *ProcessorList) GetDeferedTasks() types.Tasks {
+	return pl.deferedTasks
 }

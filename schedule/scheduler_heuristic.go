@@ -21,6 +21,10 @@ func (m Method) String() string {
 		return "CPTL"
 	case CPOP:
 		return "CPOP"
+	case HESI:
+		return "HESI"
+	case LOBA:
+		return "LOBA"
 	default:
 		return "Unknown"
 	}
@@ -31,6 +35,8 @@ const (
 	CT
 	CPTL
 	CPOP
+	HESI
+	LOBA
 )
 
 type SchedulerHeur struct {

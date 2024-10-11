@@ -83,25 +83,29 @@ func (set *RwSet) BasicRwSet(sender, to common.Address, is_transfer, is_call, is
 
 func (set *RwSet) AddReadSet(addr common.Address, hash common.Hash) {
 	if set == nil {
-		fmt.Println("NewRWSets is nil")
 		return
 	}
 	set.ReadSet.Add(addr, hash)
 }
 
 func (RWSet *RwSet) AddReadPrize() {
+	if RWSet == nil {
+		return
+	}
 	RWSet.ReadSet["prize"] = struct{}{}
 }
 
 func (RWSets *RwSet) AddWriteSet(addr common.Address, hash common.Hash) {
 	if RWSets == nil {
-		fmt.Println("NewRWSets is nil")
 		return
 	}
 	RWSets.WriteSet.Add(addr, hash)
 }
 
 func (RWSet *RwSet) AddWritePrize() {
+	if RWSet == nil {
+		return
+	}
 	RWSet.WriteSet["prize"] = struct{}{}
 }
 

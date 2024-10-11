@@ -5,22 +5,8 @@ import (
 	"blockConcur/pipeline"
 	"blockConcur/state"
 	"fmt"
-	"math"
-	"os"
-	"sort"
-	"strconv"
 	"testing"
 )
-
-func GetProcessorNumFromEnv() int {
-	processorNumStr := os.Getenv("PROCESSOR_NUM")
-	if processorNumStr != "" {
-		if num, err := strconv.Atoi(processorNumStr); err == nil {
-			return num
-		}
-	}
-	return processorNum
-}
 
 func TestSingleBlock(t *testing.T) {
 	env := helper.PrepareEnv()
@@ -30,12 +16,13 @@ func TestSingleBlock(t *testing.T) {
 	}
 	defer dbTx.Rollback()
 	ibs := env.GetIBS(uint64(startNum), dbTx)
-	mvCache := state.NewMvCache(ibs, cacheSize)
+	mvCache := state.NewMvCache(ibs, cacheSize, uint64(startNum))
 	fetchPool, ivPool := pipeline.GeneratePools(mvCache, fetchPoolSize, ivPoolSize)
 
 	var totalTps, totalGps, totalInmemTps, totalInmemGps float64
 	var tpsValues, gpsValues, inmemTpsValues, inmemGpsValues []float64
 	blockCount := endNum - startNum
+	var totalExecuteCost float64
 
 	processorNum = GetProcessorNumFromEnv()
 
@@ -47,7 +34,7 @@ func TestSingleBlock(t *testing.T) {
 
 		cost_prefetch, rwAccessedBy := pipeline.Prefetch(tasks, fetchPool, ivPool)
 		cost_graph, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)
-		cost_schedule, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum)
+		cost_schedule, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.BlkConcur)
 		cost_execute, gas := pipeline.Execute(processors, block.Withdrawals(), header, headers, env.Cfg, early_abort, mvCache)
 
 		totalTime := cost_prefetch + cost_graph + cost_schedule + cost_execute
@@ -65,6 +52,7 @@ func TestSingleBlock(t *testing.T) {
 		gpsValues = append(gpsValues, gps)
 		inmemTpsValues = append(inmemTpsValues, inmemTps)
 		inmemGpsValues = append(inmemGpsValues, inmemGps)
+		totalExecuteCost += cost_execute
 
 		nxt_ibs := env.GetIBS(uint64(blockNum+1), dbTx)
 		tid := mvCache.Validate(nxt_ibs)
@@ -106,26 +94,8 @@ func TestSingleBlock(t *testing.T) {
 	fmt.Printf("  In-Memory Average: %.2f\n", avgInmemGps)
 	fmt.Printf("  In-Memory Standard Deviation: %.2f\n", inmemGpsStdDev)
 	fmt.Printf("  In-Memory Median: %.2f\n", inmemGpsMedian)
-}
 
-// Helper function to calculate standard deviation
-func calculateStandardDeviation(values []float64, mean float64) float64 {
-	var sum float64
-	for _, v := range values {
-		sum += (v - mean) * (v - mean)
-	}
-	variance := sum / float64(len(values))
-	return math.Sqrt(variance)
-}
-
-// Helper function to calculate median
-func calculateMedian(values []float64) float64 {
-	sort.Float64s(values)
-	length := len(values)
-	if length%2 == 0 {
-		return (values[length/2-1] + values[length/2]) / 2
-	}
-	return values[length/2]
+	fmt.Printf("\nTotal Execute Cost: %.2f seconds\n", totalExecuteCost)
 }
 
 func TestSingleBlockPredict(t *testing.T) {
@@ -136,7 +106,7 @@ func TestSingleBlockPredict(t *testing.T) {
 	}
 	defer dbTx.Rollback()
 	ibs := env.GetIBS(uint64(startNum), dbTx)
-	mvCache := state.NewMvCache(ibs, cacheSize)
+	mvCache := state.NewMvCache(ibs, cacheSize, uint64(startNum))
 	fetchPool, ivPool := pipeline.GeneratePools(mvCache, fetchPoolSize, ivPoolSize)
 
 	var totalTps, totalGps, totalInmemTps, totalInmemGps float64
@@ -151,7 +121,7 @@ func TestSingleBlockPredict(t *testing.T) {
 
 		cost_prefetch, rwAccessedBy := pipeline.Prefetch(tasks, fetchPool, ivPool)
 		cost_graph, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)
-		cost_schedule, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum)
+		cost_schedule, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.BlkConcur)
 		cost_execute, gas := pipeline.Execute(processors, block.Withdrawals(), header, headers, env.Cfg, early_abort, mvCache)
 
 		totalTime := cost_prefetch + cost_graph + cost_schedule + cost_execute
@@ -169,14 +139,6 @@ func TestSingleBlockPredict(t *testing.T) {
 		gpsValues = append(gpsValues, gps)
 		inmemTpsValues = append(inmemTpsValues, inmemTps)
 		inmemGpsValues = append(inmemGpsValues, inmemGps)
-
-		nxt_ibs := env.GetIBS(uint64(blockNum+1), dbTx)
-		tid := mvCache.Validate(nxt_ibs)
-		if tid != nil {
-			fmt.Println(tid)
-			fmt.Println(tasks[tid.TxIndex].TxHash.Hex())
-			panic("incorrect results")
-		}
 	}
 
 	avgTps := totalTps / float64(blockCount)

@@ -19,6 +19,52 @@ func NewScheduleAggregator(graph *graph.Graph, use_tree bool, numWorker int) *Sc
 	}
 }
 
+// not offical product, only for benchmark
+func (sa *ScheduleAggregator) ScheduleOCCDA() (Processors, uint64, Method) {
+	processors := make(Processors, sa.numWorker)
+	for j := 0; j < sa.numWorker; j++ {
+		processors[j] = NewProcessorSimple()
+	}
+
+	scheduler := NewSchedulerHESI(sa.graph, processors)
+	scheduler.Schedule()
+
+	return processors, scheduler.makespan, HESI
+}
+
+// not offical product, only for benchmark
+func (sa *ScheduleAggregator) ScheduleQUECC() (Processors, uint64, Method) {
+	processors := make(Processors, sa.numWorker)
+	for j := 0; j < sa.numWorker; j++ {
+		processors[j] = NewProcessorSimple()
+	}
+
+	scheduler := NewSchedulerLOBA(sa.graph, processors)
+	scheduler.Schedule()
+
+	return processors, scheduler.makespan, LOBA
+}
+
+func (sa *ScheduleAggregator) ScheduleEFT() (Processors, uint64, Method) {
+	processors := make(Processors, sa.numWorker)
+	if sa.use_tree {
+		for j := 0; j < sa.numWorker; j++ {
+			processors[j] = NewProcessorTree()
+		}
+	} else {
+		for j := 0; j < sa.numWorker; j++ {
+			processors[j] = NewProcessorList()
+		}
+	}
+
+	scheduler := NewSchedulerHeur(sa.graph, processors)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	scheduler.listSchedule(EFT, &wg)
+
+	return processors, scheduler.makespan, EFT
+}
+
 func (sa *ScheduleAggregator) Schedule() (Processors, uint64, Method) {
 	// we have 4 algorithm to choose from
 	processors := make([]Processors, 4)

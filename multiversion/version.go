@@ -90,5 +90,5 @@ func (v *Version) Settle(status Status, value interface{}) {
 }
 
 func (v *Version) IsSnapshot() bool {
-	return v.Tid == utils.SnapshotID
+	return v.Tid.TxIndex == -1
 }

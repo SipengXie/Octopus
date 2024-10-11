@@ -35,16 +35,17 @@ type snapshotInterface interface {
 type MvCache struct {
 	// vcChain: version chain per record: (addr || hash) -> *VersionChain
 	// prize is stored at (COINBASE || PRIZE) -> *VersionChain
-	vcCache    *lru.Cache[string, *mv.VersionChain]
-	prizeChain *mv.VersionChain
-	snapshot   snapshotInterface
-	dirtyVc    sync.Map
-	coinbase   common.Address
+	vcCache     *lru.Cache[string, *mv.VersionChain]
+	prizeChain  *mv.VersionChain
+	snapshot    snapshotInterface
+	dirtyVc     sync.Map
+	coinbase    common.Address
+	blockNumber uint64
 }
 
-func NewMvCache(ibs *IntraBlockState, cacheSize int) *MvCache {
+func NewMvCache(ibs *IntraBlockState, cacheSize int, blockNumber uint64) *MvCache {
 	mvCache := &MvCache{
-		prizeChain: mv.NewVersionChain(),
+		prizeChain: mv.NewVersionChain(blockNumber),
 		dirtyVc:    sync.Map{},
 	}
 	snapshot := NewFakeInnerState(ibs)
@@ -93,7 +94,7 @@ func NewMvCache(ibs *IntraBlockState, cacheSize int) *MvCache {
 func (mvc *MvCache) get_or_new_vc(key string) (*mv.VersionChain, bool) {
 	vc, ok := mvc.vcCache.Get(key)
 	if !ok {
-		vc = mv.NewVersionChain()
+		vc = mv.NewVersionChain(mvc.blockNumber)
 		mvc.vcCache.Add(key, vc)
 	}
 	return vc, ok
@@ -159,48 +160,48 @@ func (mvs *MvCache) InsertVersion(key string, version *mv.Version) {
 	vc.InstallVersion(version)
 }
 
-func (mvs *MvCache) GetCommittedVersion(key string) *mv.Version {
+func (mvs *MvCache) GetLastBlockCommit(key string) *mv.Version {
 	if key == "prize" {
-		return mvs.prizeChain.GetCommittedVersion()
+		return mvs.prizeChain.LastBlockCommit
 	}
 	vc, _ := mvs.get_or_new_vc(key)
-	return vc.GetCommittedVersion()
+	return vc.LastBlockCommit
 }
 
 // GC： only retain the last commit version of each chain
 // GC is triggered by the end of each block
 // fetch the prize and add to the coinbase
 func (mvs *MvCache) GarbageCollection(number uint64, startIdx int, balanceUpdate map[common.Address]*uint256.Int) {
-	// we will construct two version: one is balance update, one is prize
-	cur_id := startIdx
-	bUId := utils.NewID(number, cur_id, 0) // balance update
-	cur_id++
+	// Combine balance update and prize collection into a single operation
+	txId := utils.NewID(number, startIdx, 0)
+
+	// Fetch and add prize to coinbase's balance update
+	prize := mvs.FetchPrize(txId)
+	if !prize.IsZero() {
+		if balanceUpdate == nil {
+			balanceUpdate = make(map[common.Address]*uint256.Int)
+		}
+		if _, exists := balanceUpdate[mvs.coinbase]; !exists {
+			balanceUpdate[mvs.coinbase] = new(uint256.Int)
+		}
+		balanceUpdate[mvs.coinbase].Add(balanceUpdate[mvs.coinbase], prize)
+	}
+
+	// Apply all balance updates with the same txId
 	if len(balanceUpdate) > 0 {
-		for addr, balance := range balanceUpdate {
+		for addr, balanceChange := range balanceUpdate {
 			key := utils.MakeKey(addr, utils.BALANCE)
 			oldBalance := mvs.Fetch(addr, utils.BALANCE).(*uint256.Int)
-			newBalance := new(uint256.Int).Add(oldBalance, balance)
-			version := mv.NewVersion(newBalance, bUId, mv.Committed)
+			newBalance := new(uint256.Int).Add(oldBalance, balanceChange)
+			version := mv.NewVersion(newBalance, txId, mv.Committed)
 			vc, _ := mvs.get_or_new_vc(key)
 			vc.InstallVersion(version)
 			vc.LastCommit.Store(version)
+			mvs.dirtyVc.Store(key, struct{}{})
 		}
-	} else {
-		cur_id--
-	}
-	pCId := utils.NewID(number, cur_id, 0) // prize collection
-	prize := mvs.FetchPrize(utils.EndID)
-	if !prize.IsZero() {
-		balance := mvs.Fetch(mvs.coinbase, utils.BALANCE).(*uint256.Int)
-		newBalance := new(uint256.Int).Add(prize, balance)
-		version := mv.NewVersion(newBalance, pCId, mv.Committed)
-		key := utils.MakeKey(mvs.coinbase, utils.BALANCE)
-		vc, _ := mvs.get_or_new_vc(key)
-		vc.InstallVersion(version)
-		vc.LastCommit.Store(version)
 	}
 
-	mvs.PrunePrize(utils.EndID)
+	mvs.PrunePrize(txId)
 	mvs.dirtyVc.Range(func(key, _ any) bool {
 		vc, ok := mvs.vcCache.Get(key.(string))
 		if !ok {
@@ -300,9 +301,5 @@ func (mvc *MvCache) FetchPrize(TxId *utils.ID) *uint256.Int {
 // TODO: if we want to run continously, we need to prune the prize chain in the end of each block.
 // also collect the prize to the coinbase.
 func (mvc *MvCache) PrunePrize(TxId *utils.ID) {
-	if TxId == utils.EndID {
-		mvc.prizeChain = mv.NewVersionChain()
-		return
-	}
 	mvc.prizeChain.Prune(TxId)
 }
