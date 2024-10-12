@@ -4,6 +4,8 @@ import (
 	"blockConcur/helper"
 	"blockConcur/pipeline"
 	"blockConcur/state"
+	"blockConcur/types"
+	"blockConcur/utils"
 	"fmt"
 	"testing"
 )
@@ -19,7 +21,7 @@ func TestSingleBlockOCCDA(t *testing.T) {
 	processorNum = GetProcessorNumFromEnv()
 
 	ibs := env.GetIBS(uint64(startNum), dbTx)
-	mvCache := state.NewMvCache(ibs, cacheSize, uint64(startNum))
+	mvCache := state.NewMvCache(ibs, cacheSize)
 	fetchPool, ivPool := pipeline.GeneratePools(mvCache, fetchPoolSize, ivPoolSize)
 
 	var totalTps, totalGps, totalInmemTps, totalInmemGps float64
@@ -32,11 +34,11 @@ func TestSingleBlockOCCDA(t *testing.T) {
 		ibs_bak := env.GetIBS(uint64(blockNum), dbTx)
 		headers := env.FetchHeaders(blockNum-256, blockNum)
 		tasks := helper.GenerateAccurateRwSets(block.Transactions(), header, headers, ibs_bak, convertNum)
-
-		cost_prefetch, rwAccessedBy := pipeline.Prefetch(tasks, fetchPool, ivPool)
+		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 0), block.Withdrawals(), header.Coinbase)
+		cost_prefetch, rwAccessedBy := pipeline.Prefetch(tasks, post_block_task, fetchPool, ivPool)
 		cost_graph, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)
 		cost_schedule, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.OCCDA_MOCK)
-		cost_execute, gas := pipeline.Execute(processors, block.Withdrawals(), header, headers, env.Cfg, early_abort, mvCache)
+		cost_execute, gas := pipeline.Execute(processors, block.Withdrawals(), post_block_task, header, headers, env.Cfg, early_abort, mvCache)
 
 		totalTime := cost_prefetch + cost_graph + cost_schedule + cost_execute
 		inmemTime := cost_graph + cost_schedule + cost_execute

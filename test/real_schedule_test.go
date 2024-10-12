@@ -4,6 +4,8 @@ import (
 	"blockConcur/helper"
 	"blockConcur/pipeline"
 	"blockConcur/state"
+	"blockConcur/types"
+	"blockConcur/utils"
 	"fmt"
 	"testing"
 )
@@ -19,7 +21,7 @@ func TestRealSchedule(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dbTx.Rollback()
-	mvCache := state.NewMvCache(env.GetIBS(uint64(startNum), dbTx), cacheSize, uint64(startNum))
+	mvCache := state.NewMvCache(env.GetIBS(uint64(startNum), dbTx), cacheSize)
 	fetchPool, ivPool := pipeline.GeneratePools(mvCache, fetchPoolSize, ivPoolSize)
 
 	var totalMakespanOCCDA, totalMakespanQUECC, totalMakespanBlkConcur uint64
@@ -30,8 +32,9 @@ func TestRealSchedule(t *testing.T) {
 		ibs_bak := env.GetIBS(uint64(blockNum), dbTx)
 		headers := env.FetchHeaders(blockNum-256, blockNum)
 		tasks := helper.GenerateAccurateRwSets(block.Transactions(), header, headers, ibs_bak, convertNum)
+		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 0), block.Withdrawals(), header.Coinbase)
 
-		_, rwAccessedBy := pipeline.Prefetch(tasks, fetchPool, ivPool)
+		_, rwAccessedBy := pipeline.Prefetch(tasks, post_block_task, fetchPool, ivPool)
 		_, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)
 		totalCriticalPathLen += graph.CriticalPathLen
 		_, _, makespanBlkConcur, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.BlkConcur)

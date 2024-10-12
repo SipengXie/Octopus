@@ -76,6 +76,7 @@ func (s *Scheduler) Run() {
 			Flag:       START,
 			Processors: processors,
 			Makespan:   makespan,
+			PostBlock:  input.PostBlock,
 			Header:     input.Header,
 			Headers:    input.Headers,
 			Withdraws:  input.Withdraws,

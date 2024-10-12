@@ -9,6 +9,6 @@ do
     go test -run ^TestSingleBlock$ blockConcur/test -v -timeout 30m -count=1 2>&1 | tee "./res/blkConcur${procNum}.txt"
     go test -run ^TestSingleBlockPredict$ blockConcur/test -v -timeout 30m -count=1 2>&1 | tee "./res/blkPredict${procNum}.txt"
     go test -run ^TestSingleBlockOCCDA$ blockConcur/test -v -timeout 30m -count=1 2>&1 | tee "./res/OCCDA${procNum}.txt"
-    go test -run ^TestSingleBlockQuecc$ blockConcur/test -v -timeout 30m -count=1 2>&1 | tee "./res/QUECC${procNum}.txt"
+    go test -run ^TestSingleBlockQUECC$ blockConcur/test -v -timeout 30m -count=1 2>&1 | tee "./res/QUECC${procNum}.txt"
 
 done

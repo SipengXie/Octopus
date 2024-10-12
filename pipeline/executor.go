@@ -62,9 +62,8 @@ func processDeferedTasks(deferedTasks types2.Tasks, execCtx *eutils.ExecContext,
 	return totalGas
 }
 
-func Execute(processors schedule.Processors, withdraws types.Withdrawals, header *types.Header, headers []*types.Header, chainCfg *chain.Config, early_abort bool, mvCache *state.MvCache) (float64, uint64) {
+func Execute(processors schedule.Processors, withdraws types.Withdrawals, post_block_task *types2.Task, header *types.Header, headers []*types.Header, chainCfg *chain.Config, early_abort bool, mvCache *state.MvCache) (float64, uint64) {
 	var wg sync.WaitGroup
-	taskNum := 0
 	balanceUpdate := make(map[common.Address]*uint256.Int)
 	// deal with withdrawals
 	// balance update
@@ -84,7 +83,6 @@ func Execute(processors schedule.Processors, withdraws types.Withdrawals, header
 		ctx := eutils.NewExecContext(header, headers, chainCfg, early_abort)
 		ctx.ExecState = state.NewForRun(mvCache, header.Coinbase, early_abort)
 		processor.SetExecCtx(ctx, &wg)
-		taskNum += processor.Size()
 	}
 
 	st := time.Now()
@@ -110,7 +108,7 @@ func Execute(processors schedule.Processors, withdraws types.Withdrawals, header
 		totalGas += processDeferedTasks(deferedTasks, ctx, early_abort)
 	}
 
-	mvCache.GarbageCollection(header.Number.Uint64(), taskNum, balanceUpdate)
+	mvCache.GarbageCollection(balanceUpdate, post_block_task)
 	cost := time.Since(st).Seconds()
 	for _, processor := range processors {
 		totalGas += processor.GetGas()
@@ -133,7 +131,7 @@ func (e *Executor) Run() {
 		// while the exec state maintains the localwrite
 		// init execCtx for each processor
 		processors := input.Processors
-		cost, gas := Execute(processors, input.Withdraws, input.Header, input.Headers, e.chainCfg, e.early_abort, e.mvCache)
+		cost, gas := Execute(processors, input.Withdraws, input.PostBlock, input.Header, input.Headers, e.chainCfg, e.early_abort, e.mvCache)
 		elapsed += cost
 		e.totalGas += gas
 	}

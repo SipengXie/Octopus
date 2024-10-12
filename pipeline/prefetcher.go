@@ -70,7 +70,7 @@ func GeneratePools(cache *state.MvCache, fetchPoolSize, ivPoolSize int) (fetchPo
 			// TODO: if we change this version to the last block's last inserted version,
 			// we could achieve inter-block concurrency control. However, we have
 			// (1) the block root generation problem.
-			v := cache.GetLastBlockCommit(key)
+			v := cache.GetLastBlockVersion(key, task.Tid)
 			task.AddReadVersion(key, v)
 		}
 		// adding task.rwset.write_set to task.WriteVersions and install them to the cache.
@@ -98,8 +98,9 @@ func NewPrefetcher(cache *state.MvCache, wg *sync.WaitGroup, fetchPoolSize, ivPo
 	}
 }
 
-func Prefetch(tasks types.Tasks, fetchPool, ivPool *ants.PoolWithFunc) (float64, *rwset.RwAccessedBy) {
-	// TODO: This two function could be merged...
+// a special task is constructed to handle the withdrawals and coinbase
+// post_block_task only contains the read/write set, no other information.
+func Prefetch(tasks types.Tasks, post_block_task *types.Task, fetchPool, ivPool *ants.PoolWithFunc) (float64, *rwset.RwAccessedBy) {
 	rwAccessedBy := GenerateAccessedBy(tasks)
 	// Parallel prefetch the keys in rwAccessedBy's readBy map
 	st := time.Now()
@@ -108,15 +109,22 @@ func Prefetch(tasks types.Tasks, fetchPool, ivPool *ants.PoolWithFunc) (float64,
 		wg.Add(1)
 		fetchPool.Invoke(&keyAndWg{key: key, wg: &wg})
 	}
+	for key := range post_block_task.RwSet.ReadSet {
+		wg.Add(1)
+		fetchPool.Invoke(&keyAndWg{key: key, wg: &wg})
+	}
 	wg.Wait()
 	cost := time.Since(st).Seconds()
 
 	// Parallel add initial read/write versions to the tasks
+	wg.Add(1)
+	ivPool.Invoke(&taskAndWg{task: post_block_task, wg: &wg})
 	for _, task := range tasks {
 		wg.Add(1)
 		ivPool.Invoke(&taskAndWg{task: task, wg: &wg})
 	}
 	wg.Wait()
+
 	return cost, rwAccessedBy
 }
 
@@ -138,13 +146,14 @@ func (g *Prefetcher) Run() {
 
 		tasks := input.Tasks
 
-		cost, rwAccessedBy := Prefetch(tasks, g.FetchPool, g.IVPool)
+		cost, rwAccessedBy := Prefetch(tasks, input.PostBlock, g.FetchPool, g.IVPool)
 		elapsed += cost
 
 		outMessage := &BuildGraphMessage{
 			Flag:         START,
 			Tasks:        tasks,
 			RwAccessedBy: rwAccessedBy,
+			PostBlock:    input.PostBlock,
 			Header:       input.Header,
 			Headers:      input.Headers,
 			Withdraws:    input.Withdraws,

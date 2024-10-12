@@ -7,6 +7,8 @@ import (
 	"blockConcur/helper"
 	"blockConcur/rwset"
 	"blockConcur/state"
+	"blockConcur/types"
+	"blockConcur/utils"
 	"fmt"
 	"testing"
 	"time"
@@ -29,7 +31,7 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 
 	cfg := params.MainnetChainConfig
 	ibs := env.GetIBS(uint64(startNum), dbTx)
-	mvCache := state.NewMvCache(ibs, cacheSize, uint64(startNum))
+	mvCache := state.NewMvCache(ibs, cacheSize)
 
 	for blockNum := startNum; blockNum < endNum; blockNum++ {
 		block, header := env.GetBlockAndHeader(uint64(blockNum))
@@ -43,7 +45,7 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 
 		startTime := time.Now()
 		totalGas := uint64(0)
-
+		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 0), withdrawals, header.Coinbase)
 		balanceUpdate := make(map[common.Address]*uint256.Int)
 		for _, withdrawal := range withdrawals {
 			balance, ok := balanceUpdate[withdrawal.Address]
@@ -85,7 +87,7 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 
 			totalGas += result.UsedGas
 		}
-		mvCache.GarbageCollection(blockNum, len(tasks), balanceUpdate)
+		mvCache.GarbageCollection(balanceUpdate, post_block_task)
 
 		duration := time.Since(startTime)
 		tps := float64(len(txs)) / duration.Seconds()
@@ -97,6 +99,7 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 		tid := mvCache.Validate(ibs_bak)
 		if tid != nil {
 			fmt.Println(tid)
+			break
 		}
 	}
 }

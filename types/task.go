@@ -23,6 +23,22 @@ type Task struct {
 	PrizeVersions []*mv.Version
 }
 
+func NewPostBlockTask(id *utils.ID, withdraws types2.Withdrawals, coinbase common.Address) *Task {
+	rwset := rwset.NewRwSet()
+	for _, withdrawal := range withdraws {
+		rwset.AddReadSet(withdrawal.Address, utils.BALANCE)
+		rwset.AddWriteSet(withdrawal.Address, utils.BALANCE)
+	}
+	rwset.AddReadSet(coinbase, utils.BALANCE)
+	rwset.AddWriteSet(coinbase, utils.BALANCE)
+	return &Task{
+		Tid:           id,
+		RwSet:         rwset,
+		ReadVersions:  make(map[string]*mv.Version),
+		WriteVersions: make(map[string]*mv.Version),
+	}
+}
+
 func NewTask(id *utils.ID, cost uint64, msg *types2.Message, bHash, tHash common.Hash) *Task {
 	return &Task{
 		Tid:           id,

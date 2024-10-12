@@ -4,10 +4,11 @@ import (
 	"blockConcur/helper"
 	"blockConcur/pipeline"
 	"blockConcur/state"
+	"blockConcur/types"
+	"blockConcur/utils"
 	"fmt"
 	"sync"
 	"testing"
-	"time"
 )
 
 func TestPipeline(t *testing.T) {
@@ -22,7 +23,7 @@ func TestPipeline(t *testing.T) {
 	// shared resources
 	processorNum := GetProcessorNumFromEnv()
 	ibs := env.GetIBS(uint64(startNum), dbTx)
-	mvCache := state.NewMvCache(ibs, cacheSize, uint64(startNum))
+	mvCache := state.NewMvCache(ibs, cacheSize)
 	wg := &sync.WaitGroup{}
 	taskChan := make(chan *pipeline.TaskMessage, 1024)
 	buildGraphChan := make(chan *pipeline.BuildGraphMessage, 1024)
@@ -34,16 +35,31 @@ func TestPipeline(t *testing.T) {
 	scheduler := pipeline.NewScheduler(processorNum, false, wg, graphChan, scheduleChan)
 	executor := pipeline.NewExecutor(mvCache, env.Cfg, early_abort, wg, scheduleChan)
 
+	// Start the pipeline components
+	wg.Add(4)
+	go prefetcher.Run()
+	go graphBuilder.Run()
+	go scheduler.Run()
+	go executor.Run()
+
 	// Collect and send tasks
+	dbTx2, err := env.DB.BeginRo(env.Ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dbTx2.Rollback()
+	totalTxs := 0
 	for blockNum := startNum; blockNum < endNum; blockNum++ {
 		block, header := env.GetBlockAndHeader(uint64(blockNum))
-		ibs_bak := env.GetIBS(uint64(blockNum), dbTx)
+		ibs_bak := env.GetIBS(uint64(blockNum), dbTx2)
 		headers := env.FetchHeaders(blockNum-256, blockNum)
 		tasks := helper.GenerateAccurateRwSets(block.Transactions(), header, headers, ibs_bak, convertNum)
-
+		totalTxs += len(tasks)
+		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 0), block.Withdrawals(), header.Coinbase)
 		taskMessage := &pipeline.TaskMessage{
 			Flag:      pipeline.START,
 			Tasks:     tasks,
+			PostBlock: post_block_task,
 			Header:    header,
 			Headers:   headers,
 			Withdraws: block.Withdrawals(),
@@ -54,17 +70,9 @@ func TestPipeline(t *testing.T) {
 	// Send END signal and close channels
 	taskChan <- &pipeline.TaskMessage{Flag: pipeline.END}
 	close(taskChan)
-
-	// Start the pipeline components
-	wg.Add(4)
-	startTime := time.Now()
-	go prefetcher.Run()
-	go graphBuilder.Run()
-	go scheduler.Run()
-	go executor.Run()
-	// Wait for all components to finish
 	wg.Wait()
-	elapsed := time.Since(startTime).Seconds()
+
+	fmt.Printf("Total transactions processed: %d\n", totalTxs)
 
 	nxt_ibs := env.GetIBS(uint64(endNum), dbTx)
 	tid := mvCache.Validate(nxt_ibs)
@@ -72,7 +80,5 @@ func TestPipeline(t *testing.T) {
 		fmt.Println(tid)
 		panic("incorrect results")
 	}
-
-	fmt.Println("Total Execution Time:", elapsed, "s")
 
 }

@@ -102,6 +102,7 @@ func (g *GraphBuilder) Run() {
 		outMessage := &GraphMessage{
 			Flag:      START,
 			Graph:     graph,
+			PostBlock: input.PostBlock,
 			Header:    input.Header,
 			Headers:   input.Headers,
 			Withdraws: input.Withdraws,

@@ -5,6 +5,7 @@ import (
 	"blockConcur/types"
 	"blockConcur/utils"
 	"bytes"
+	"fmt"
 
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -70,6 +71,8 @@ func (s *ExecColdState) GetBalance(addr common.Address) *uint256.Int {
 	}
 	balance, ok = version.Data.(*uint256.Int)
 	if !ok {
+		temp := s.input_predict.get(addr, utils.BALANCE)
+		fmt.Println(temp)
 		panic("balance is not a uint256.Int")
 	}
 	return balance
@@ -88,6 +91,8 @@ func (s *ExecColdState) GetNonce(addr common.Address) uint64 {
 	}
 	nonce, ok = version.Data.(uint64)
 	if !ok {
+		temp := s.input_predict.get(addr, utils.NONCE)
+		fmt.Println(temp)
 		panic("nonce is not a uint64")
 	}
 	return nonce
@@ -106,6 +111,8 @@ func (s *ExecColdState) GetCodeHash(addr common.Address) common.Hash {
 	}
 	codeHash, ok = version.Data.(common.Hash)
 	if !ok {
+		temp := s.input_predict.get(addr, utils.CODEHASH)
+		fmt.Println(temp)
 		panic("codeHash is not a common.Hash")
 	}
 	return codeHash
@@ -124,6 +131,8 @@ func (s *ExecColdState) GetCode(addr common.Address) []byte {
 	}
 	code, ok = version.Data.([]byte)
 	if !ok {
+		temp := s.input_predict.get(addr, utils.CODE)
+		fmt.Println(temp)
 		panic("code is not a []byte")
 	}
 	return code
@@ -145,6 +154,8 @@ func (s *ExecColdState) GetState(addr common.Address, hash *common.Hash, value *
 	}
 	slot, ok := version.Data.(*uint256.Int)
 	if !ok {
+		temp := s.input_predict.get(addr, *hash)
+		fmt.Println(temp)
 		panic("slot is not a *uint256.Int")
 	}
 	value.Set(slot)
@@ -162,6 +173,8 @@ func (s *ExecColdState) Exist(addr common.Address) bool {
 	}
 	exist, ok = version.Data.(bool)
 	if !ok {
+		temp := s.input_predict.get(addr, utils.EXIST)
+		fmt.Println(temp)
 		panic("exist is not a bool")
 	}
 	return exist

@@ -2,6 +2,7 @@ package state
 
 import (
 	mv "blockConcur/multiversion"
+	"blockConcur/types"
 	"blockConcur/utils"
 	"reflect"
 	"sync"
@@ -35,17 +36,16 @@ type snapshotInterface interface {
 type MvCache struct {
 	// vcChain: version chain per record: (addr || hash) -> *VersionChain
 	// prize is stored at (COINBASE || PRIZE) -> *VersionChain
-	vcCache     *lru.Cache[string, *mv.VersionChain]
-	prizeChain  *mv.VersionChain
-	snapshot    snapshotInterface
-	dirtyVc     sync.Map
-	coinbase    common.Address
-	blockNumber uint64
+	vcCache    *lru.Cache[string, *mv.VersionChain]
+	prizeChain *mv.VersionChain
+	snapshot   snapshotInterface
+	dirtyVc    sync.Map
+	coinbase   common.Address
 }
 
-func NewMvCache(ibs *IntraBlockState, cacheSize int, blockNumber uint64) *MvCache {
+func NewMvCache(ibs *IntraBlockState, cacheSize int) *MvCache {
 	mvCache := &MvCache{
-		prizeChain: mv.NewVersionChain(blockNumber),
+		prizeChain: mv.NewVersionChain(),
 		dirtyVc:    sync.Map{},
 	}
 	snapshot := NewFakeInnerState(ibs)
@@ -94,7 +94,7 @@ func NewMvCache(ibs *IntraBlockState, cacheSize int, blockNumber uint64) *MvCach
 func (mvc *MvCache) get_or_new_vc(key string) (*mv.VersionChain, bool) {
 	vc, ok := mvc.vcCache.Get(key)
 	if !ok {
-		vc = mv.NewVersionChain(mvc.blockNumber)
+		vc = mv.NewVersionChain()
 		mvc.vcCache.Add(key, vc)
 	}
 	return vc, ok
@@ -160,21 +160,30 @@ func (mvs *MvCache) InsertVersion(key string, version *mv.Version) {
 	vc.InstallVersion(version)
 }
 
-func (mvs *MvCache) GetLastBlockCommit(key string) *mv.Version {
+func (mvs *MvCache) GetLastBlockVersion(key string, txid *utils.ID) *mv.Version {
 	if key == "prize" {
-		return mvs.prizeChain.LastBlockCommit
+		return mvs.prizeChain.GetLastBlockVersion(txid)
 	}
 	vc, _ := mvs.get_or_new_vc(key)
-	return vc.LastBlockCommit
+	return vc.GetLastBlockVersion(txid)
+}
+
+func (mvs *MvCache) gcForSerial(balanceUpdate map[common.Address]*uint256.Int, txid *utils.ID) {
+	for addr, balanceChange := range balanceUpdate {
+		oldBalance := mvs.Fetch(addr, utils.BALANCE).(*uint256.Int)
+		newBalance := new(uint256.Int).Add(oldBalance, balanceChange)
+		version := mv.NewVersion(newBalance, txid, mv.Committed)
+		mvs.InsertVersion(utils.MakeKey(addr, utils.BALANCE), version)
+		mvs.Update(version, utils.MakeKey(addr, utils.BALANCE), newBalance)
+	}
 }
 
 // GC： only retain the last commit version of each chain
 // GC is triggered by the end of each block
 // fetch the prize and add to the coinbase
-func (mvs *MvCache) GarbageCollection(number uint64, startIdx int, balanceUpdate map[common.Address]*uint256.Int) {
+func (mvs *MvCache) GarbageCollection(balanceUpdate map[common.Address]*uint256.Int, post_block_task *types.Task) {
 	// Combine balance update and prize collection into a single operation
-	txId := utils.NewID(number, startIdx, 0)
-
+	txId := post_block_task.Tid
 	// Fetch and add prize to coinbase's balance update
 	prize := mvs.FetchPrize(txId)
 	if !prize.IsZero() {
@@ -189,15 +198,21 @@ func (mvs *MvCache) GarbageCollection(number uint64, startIdx int, balanceUpdate
 
 	// Apply all balance updates with the same txId
 	if len(balanceUpdate) > 0 {
-		for addr, balanceChange := range balanceUpdate {
-			key := utils.MakeKey(addr, utils.BALANCE)
-			oldBalance := mvs.Fetch(addr, utils.BALANCE).(*uint256.Int)
-			newBalance := new(uint256.Int).Add(oldBalance, balanceChange)
-			version := mv.NewVersion(newBalance, txId, mv.Committed)
-			vc, _ := mvs.get_or_new_vc(key)
-			vc.InstallVersion(version)
-			vc.LastCommit.Store(version)
-			mvs.dirtyVc.Store(key, struct{}{})
+		post_block_write_versions := post_block_task.WriteVersions
+		if len(post_block_write_versions) == 0 {
+			mvs.gcForSerial(balanceUpdate, txId)
+		} else {
+			// update post_block_write_versions if the corresponding account is in the map
+			for key, version := range post_block_write_versions {
+				addr, _ := utils.ParseKey(key)
+				if balanceChange, exists := balanceUpdate[addr]; exists {
+					oldBalance := mvs.Fetch(addr, utils.BALANCE).(*uint256.Int)
+					newBalance := new(uint256.Int).Add(oldBalance, balanceChange)
+					mvs.Update(version, key, newBalance)
+				} else {
+					version.Settle(mv.Ignore, nil)
+				}
+			}
 		}
 	}
 
@@ -205,8 +220,9 @@ func (mvs *MvCache) GarbageCollection(number uint64, startIdx int, balanceUpdate
 	mvs.dirtyVc.Range(func(key, _ any) bool {
 		vc, ok := mvs.vcCache.Get(key.(string))
 		if !ok {
-			addr, hash := utils.ParseKey(key.(string))
-			panic("version chain not found in the cache: " + addr.Hex() + " " + hash.Hex())
+			return true
+			// addr, hash := utils.ParseKey(key.(string))
+			// panic("version chain not found in the cache: " + addr.Hex() + " " + hash.Hex())
 		}
 		vc.GarbageCollection()
 		return true
