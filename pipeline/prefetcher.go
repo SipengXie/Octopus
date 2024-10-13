@@ -109,6 +109,10 @@ func Prefetch(tasks types.Tasks, post_block_task *types.Task, fetchPool, ivPool 
 		wg.Add(1)
 		fetchPool.Invoke(&keyAndWg{key: key, wg: &wg})
 	}
+	for key := range rwAccessedBy.WriteBy {
+		wg.Add(1)
+		fetchPool.Invoke(&keyAndWg{key: key, wg: &wg})
+	}
 	for key := range post_block_task.RwSet.ReadSet {
 		wg.Add(1)
 		fetchPool.Invoke(&keyAndWg{key: key, wg: &wg})

@@ -23,7 +23,7 @@ func TestRealSchedule(t *testing.T) {
 	defer dbTx.Rollback()
 	mvCache := state.NewMvCache(env.GetIBS(uint64(startNum), dbTx), cacheSize)
 	fetchPool, ivPool := pipeline.GeneratePools(mvCache, fetchPoolSize, ivPoolSize)
-
+	processorNum := GetProcessorNumFromEnv()
 	var totalMakespanOCCDA, totalMakespanQUECC, totalMakespanBlkConcur uint64
 	var totalCriticalPathLen uint64
 
@@ -59,6 +59,6 @@ func TestRealSchedule(t *testing.T) {
 	extraTimeBlkConcur := totalMakespanBlkConcur - totalCriticalPathLen
 
 	fmt.Printf("Number of Processors: %d\n", processorNum)
-	fmt.Printf("Overall SLR - OCCDA: %.2f, QUECC: %.2f, BlkConcur: %.2f\n", slrOCCDA, slrQUECC, slrBlkConcur)
+	fmt.Printf("Overall SLR - OCCDA: %.2f%%, QUECC: %.2f%%, BlkConcur: %.2f%%\n", slrOCCDA*100, slrQUECC*100, slrBlkConcur*100)
 	fmt.Printf("Extra execution gas compared to optimal - OCCDA: %d, QUECC: %d, BlkConcur: %d\n", extraTimeOCCDA, extraTimeQUECC, extraTimeBlkConcur)
 }
