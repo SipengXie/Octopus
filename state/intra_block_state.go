@@ -1012,8 +1012,6 @@ func (sdb *IntraBlockState) Commit(lw *localWrite, coinbase libcommon.Address, T
 	sdb.AddPrize(lw.getPrize())
 }
 
-// TODO: 也许需要清空prize
-
 func (sdb *IntraBlockState) SetCoinbase(coinbase libcommon.Address) {
 
 }

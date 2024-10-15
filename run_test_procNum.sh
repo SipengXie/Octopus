@@ -4,7 +4,7 @@ for procNum in 2 4 8 16 32
 do
     export PROCESSOR_NUM=$procNum
     
-    echo "运行测试 processorNum: $procNum"
+    echo "Running Test processorNum: $procNum"
     go test -run ^TestRealSchedule$ blockConcur/test -v -timeout 30m -count=1 2>&1 | tee "./res/realSchedule${procNum}.txt"
     # go test -run ^TestSingleBlock$ blockConcur/test -v -timeout 30m -count=1 2>&1 | tee "./res/blkConcur${procNum}.txt"
     # go test -run ^TestSingleBlockPredict$ blockConcur/test -v -timeout 30m -count=1 2>&1 | tee "./res/blkPredict${procNum}.txt"

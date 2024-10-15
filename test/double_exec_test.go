@@ -1,8 +1,5 @@
 package test
 
-// 这个测试会测试那些rwset不准确的交易
-//当他们被放到区块最后，他们新产生的rwset是否还能使用
-
 import (
 	"blockConcur/eutils"
 	"blockConcur/evm/vm"

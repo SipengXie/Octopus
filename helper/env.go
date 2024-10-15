@@ -118,7 +118,6 @@ func (g *GloablEnv) FetchHeaders(start, end uint64) []*types.Header {
 	var wg sync.WaitGroup
 	pool, _ := ants.NewPoolWithFunc(int(end-start+1), func(i interface{}) {
 		defer wg.Done()
-		// 获取头部
 		idx := i.(int)
 		header, err := g.BlockReader.HeaderByNumber(g.Ctx, dbTxs[idx], start+uint64(idx))
 		if err != nil {

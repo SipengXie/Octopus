@@ -20,7 +20,6 @@ import (
 func GenerateAccurateRwSets(txs types2.Transactions, header *types2.Header, headers []*types2.Header, ibs *state.IntraBlockState, worker_num int) types.Tasks {
 	cfg := params.MainnetChainConfig
 	tasks := ConvertTxToTasks(txs, header, worker_num)
-	// 用于串行执行
 	execCtx := eutils.NewExecContext(header, headers, cfg, false)
 	execState := state.NewForRwSetGen(ibs, header.Coinbase, false, 8192)
 	execCtx.ExecState = execState

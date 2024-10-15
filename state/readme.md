@@ -1,11 +1,11 @@
-- 记住execstate的getcommittedstate是从task的readVersion里拿的
-- isValidRead判断的是否可以从其他Tx/snapshot中获取，而不阻止Tx从自己的localwrite中获取
-    - 我们并不关心，一个交易读自己写的东西，因为那会造成一个自边，这是不允许的。他也不影响别人的依赖关系对吧？
-    - 这样的实现，会不会造成不一致? 超出读写集：本来读的地方没有A，只有写A；但我现在又读A，和之前的读写集不一样
-        - 多读一下自己写过的东西会影响什么吗？不会
-    - **is_vaid_read(...)**判断其在input_data || localWrite中
-    - **is_valid_write(...)**判断其在output_data中
-    - readVersions变成input_data
-    - writeVersions变成output_data
-- 我们的execstate应该有一个journal，每个Tx都会有新的；我们的evm.call/create的snapshot和revert也应该加上，因为子合约的call可能被revert，但不影响父合约
-- PrizeChain应该单独维护，不该放在vcCache里
+- Remember that execstate's getcommittedstate is obtained from the task's readVersion
+- isValidRead checks if it can be obtained from other Tx/snapshot, without preventing Tx from obtaining from its own localwrite
+    - We don't care if a transaction reads what it has written, because that would create a self-edge, which is not allowed. It also doesn't affect others' dependency relationships, right?
+    - Will this implementation cause inconsistency? Exceeding the read-write set: originally there was no A in the read location, only write A; but now I'm reading A again, which is different from the previous read-write set
+        - Does reading something you've written again affect anything? No
+    - **is_valid_read(...)** checks if it's in input_data || localWrite
+    - **is_valid_write(...)** checks if it's in output_data
+    - readVersions becomes input_data
+    - writeVersions becomes output_data
+- Our execstate should have a journal, each Tx will have a new one; we should also add snapshot and revert for our evm.call/create, because the call of a child contract may be reverted, but it doesn't affect the parent contract
+- PrizeChain should be maintained separately, it shouldn't be placed in vcCache

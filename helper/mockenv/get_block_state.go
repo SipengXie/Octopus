@@ -195,7 +195,6 @@ func getHeaders() []*types.Header {
 		headers = append(headers, header)
 	}
 
-	// headers 按照 Number().Uint64排序
 	sort.Slice(headers, func(i, j int) bool {
 		return headers[i].Number.Uint64() < headers[j].Number.Uint64()
 	})
