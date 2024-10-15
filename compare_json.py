@@ -8,42 +8,42 @@ def compare_json_files(file1, file2):
             data2 = json.load(f2)
 
         if not isinstance(data1, list) or not isinstance(data2, list):
-            print("两个JSON文件都应该包含列表作为顶层结构")
+            print("Both JSON files should contain lists as the top-level structure")
             return
 
         for i, (item1, item2) in enumerate(zip(data1, data2)):
             if item1 != item2:
-                print(f"在索引 {i} 处发现第一个差异:")
+                print(f"First difference found at index {i}:")
                 diff_keys = set(item1.keys()) ^ set(item2.keys())
                 common_keys = set(item1.keys()) & set(item2.keys())
                 
                 for key in diff_keys:
                     if key in item1:
-                        print(f"  文件1中独有的键: {key}: {item1[key]}")
+                        print(f"  Key unique to file1: {key}: {item1[key]}")
                     else:
-                        print(f"  文件2中独有的键: {key}: {item2[key]}")
+                        print(f"  Key unique to file2: {key}: {item2[key]}")
                 
                 for key in common_keys:
                     if item1[key] != item2[key]:
-                        print(f"  键 '{key}' 的值不同:")
-                        print(f"    文件1: {item1[key]}")
-                        print(f"    文件2: {item2[key]}")
+                        print(f"  Values differ for key '{key}':")
+                        print(f"    File1: {item1[key]}")
+                        print(f"    File2: {item2[key]}")
                 
-                return  # 找到第一个差异后立即返回
+                return  # Return immediately after finding the first difference
 
         if len(data1) != len(data2):
-            print(f"文件长度不同。文件1的长度: {len(data1)}, 文件2的长度: {len(data2)}")
+            print(f"File lengths differ. File1 length: {len(data1)}, File2 length: {len(data2)}")
         else:
-            print("两个文件完全相同")
+            print("The two files are identical")
 
     except json.JSONDecodeError:
-        print("一个或两个输入文件不是有效的JSON格式")
+        print("One or both input files are not valid JSON format")
     except IOError:
-        print("读取文件时发生错误")
+        print("An error occurred while reading the files")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("使用方法: python compare_json.py <文件1> <文件2>")
+        print("Usage: python compare_json.py <file1> <file2>")
     else:
         file1 = sys.argv[1]
         file2 = sys.argv[2]

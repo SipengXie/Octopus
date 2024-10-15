@@ -9,15 +9,15 @@ def beautify_json(input_file, output_file):
         with open(output_file, 'w') as file:
             json.dump(data, file, indent=2, ensure_ascii=False)
         
-        print(f"JSON文件已成功美化并保存到 {output_file}")
+        print(f"JSON file has been successfully beautified and saved to {output_file}")
     except json.JSONDecodeError:
-        print("输入文件不是有效的JSON格式")
+        print("The input file is not a valid JSON format")
     except IOError:
-        print("读取或写入文件时发生错误")
+        print("An error occurred while reading or writing the file")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("使用方法: python script.py <输入文件> <输出文件>")
+        print("Usage: python script.py <input_file> <output_file>")
     else:
         input_file = sys.argv[1]
         output_file = sys.argv[2]
