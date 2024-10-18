@@ -37,6 +37,17 @@ func (g *ID) Less(other *ID) bool {
 	return false
 }
 
+func (g *ID) Compare(other *ID) int {
+	if g.Equal(other) {
+		return 0
+	}
+	if g.Less(other) {
+		return -1
+	}
+	return 1
+
+}
+
 type IDs []*ID
 
 func (ids IDs) Find(target *ID) (int, bool) {

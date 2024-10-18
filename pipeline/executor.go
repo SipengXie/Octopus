@@ -5,6 +5,8 @@ import (
 	core "blockConcur/evm"
 	"blockConcur/evm/vm"
 	"blockConcur/evm/vm/evmtypes"
+	dag "blockConcur/graph"
+	occdacore "blockConcur/occda_core"
 	"blockConcur/schedule"
 	"blockConcur/state"
 	types2 "blockConcur/types"
@@ -44,20 +46,32 @@ func NewExecutor(mvCache *state.MvCache, chainCfg *chain.Config,
 // process the defered tasks
 // if early_abort is true, we will serial execute the defered tasks (tasks do not carry out the rwset)
 // TODO: if early_abort is false, we will parallel execute the defered tasks with blockConcur, which can handle the inaccurate rwset problem
-func processDeferedTasks(deferedTasks types2.Tasks, execCtx *eutils.ExecContext, is_serial bool) uint64 {
-	evm := vm.NewEVM(execCtx.BlockCtx, evmtypes.TxContext{}, execCtx.ExecState, execCtx.ChainCfg, vm.Config{})
+func processDeferedTasks(deferedTasks types2.Tasks, is_serial bool, use_graph bool, processor_num int, mvCache *state.MvCache, header *types.Header, headers []*types.Header, chainCfg *chain.Config) uint64 {
 	totalGas := uint64(0)
-	for _, task := range deferedTasks {
-		// give task a new ID, the incarnation number will be set to 1
-		task.Tid = utils.NewID(task.Tid.BlockNumber, task.Tid.TxIndex, 1)
-		execCtx.SetTask(task, nil)
-		evm.TxContext = execCtx.TxCtx
-		msg := task.Msg
-		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
-		if err == nil {
-			execCtx.ExecState.Commit()
-			totalGas += res.UsedGas
+	if is_serial {
+		execCtx := eutils.NewExecContext(header, headers, chainCfg, false)
+		execCtx.ExecState = state.NewForRun(mvCache, header.Coinbase, false)
+		evm := vm.NewEVM(execCtx.BlockCtx, evmtypes.TxContext{}, execCtx.ExecState, execCtx.ChainCfg, vm.Config{})
+		for _, task := range deferedTasks {
+			// give task a new ID, the incarnation number will be set to 1
+			task.Tid = utils.NewID(task.Tid.BlockNumber, task.Tid.TxIndex, 1)
+			execCtx.SetTask(task, nil)
+			evm.TxContext = execCtx.TxCtx
+			msg := task.Msg
+			res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
+			if err == nil {
+				execCtx.ExecState.Commit()
+				totalGas += res.UsedGas
+			}
 		}
+	} else {
+		var graph *dag.Graph
+		if use_graph {
+			_, graph = GenerateGraph(deferedTasks, GenerateAccessedBy(deferedTasks))
+		}
+		occdaTasks := occdacore.GenerateOCCDATasks(deferedTasks)
+		h_txs, tidToTaskIdx := occdacore.OCCDAInitialize(occdaTasks, graph)
+		totalGas += occdacore.OCCDAMain(occdaTasks, h_txs, tidToTaskIdx, processor_num, mvCache, header, headers, chainCfg)
 	}
 	return totalGas
 }
@@ -103,9 +117,7 @@ func Execute(processors schedule.Processors, withdraws types.Withdrawals, post_b
 		sort.Slice(deferedTasks, func(i, j int) bool {
 			return deferedTasks[i].Tid.Less(deferedTasks[j].Tid)
 		})
-		ctx := eutils.NewExecContext(header, headers, chainCfg, early_abort)
-		ctx.ExecState = state.NewForRun(mvCache, header.Coinbase, early_abort)
-		totalGas += processDeferedTasks(deferedTasks, ctx, early_abort)
+		totalGas += processDeferedTasks(deferedTasks, false, false, len(processors), mvCache, header, headers, chainCfg)
 	}
 
 	mvCache.GarbageCollection(balanceUpdate, post_block_task)

@@ -3,8 +3,8 @@ module blockConcur
 go 1.22.1
 
 replace (
-	github.com/ledgerwatch/erigon => ../erigon/
-	github.com/ledgerwatch/erigon-lib => ../erigon/erigon-lib
+	github.com/ledgerwatch/erigon => /home/ubuntu/erigon/
+	github.com/ledgerwatch/erigon-lib => /home/ubuntu/erigon/erigon-lib
 )
 
 require (
