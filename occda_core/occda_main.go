@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon/core/types"
@@ -36,7 +37,7 @@ func (h *HeapId) Pop() interface{} {
 type HeapGas []*OCCDATask // heap definition, consider gas as key
 
 func (h HeapGas) Len() int           { return len(h) }
-func (h HeapGas) Less(i, j int) bool { return h[i].Task.Msg.Gas() < h[j].Task.Msg.Gas() }
+func (h HeapGas) Less(i, j int) bool { return h[i].Cost < h[j].Cost }
 func (h HeapGas) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 func (h *HeapGas) Push(x interface{}) {
 	*h = append(*h, x.(*OCCDATask))
@@ -49,7 +50,7 @@ func (h *HeapGas) Pop() interface{} {
 	return x
 }
 
-func OCCDAMain(occdaTasks []*OCCDATask, h_txs *HeapSid, tidToTaskIdx map[*utils.ID]int, processor_num int, mvCache *state.MvCache, header *types.Header, headers []*types.Header, chainCfg *chain.Config) uint64 {
+func OCCDAMain(occdaTasks []*OCCDATask, h_txs *HeapSid, tidToTaskIdx map[*utils.ID]int, processor_num int, mvCache *state.MvCache, header *types.Header, headers []*types.Header, chainCfg *chain.Config) (float64, uint64) {
 	// =====================================================================
 	next := 0 // next task in tasks to be committed
 	len := len(occdaTasks)
@@ -60,6 +61,7 @@ func OCCDAMain(occdaTasks []*OCCDATask, h_txs *HeapSid, tidToTaskIdx map[*utils.
 	pool, _ := ants.NewPoolWithFunc(min(processor_num, runtime.NumCPU()), func(input interface{}) {
 		defer wg.Done()
 		occdaTask := input.(*OCCDATask)
+		occdaTask.RwSet = nil
 		newRW := rwset.NewRwSet()
 		execCtx := eutils.NewExecContext(header, headers, chainCfg, false) // occda won't early abort
 		execCtx.ExecState = state.NewForRun(mvCache, header.Coinbase, false)
@@ -73,10 +75,11 @@ func OCCDAMain(occdaTasks []*OCCDATask, h_txs *HeapSid, tidToTaskIdx map[*utils.
 			occdaTask.gasUsed = res.UsedGas
 			gasCounter.Add(res.UsedGas)
 		}
+		occdaTask.RwSet = newRW
 	}, ants.WithPreAlloc(true), ants.WithDisablePurge(true))
 	defer pool.Release()
 	// =====================================================================
-
+	startTime := time.Now()
 	for next < len {
 		// moving transactions from h_txs to h_ready
 		for h_txs.Len() > 0 {
@@ -137,5 +140,5 @@ func OCCDAMain(occdaTasks []*OCCDATask, h_txs *HeapSid, tidToTaskIdx map[*utils.
 			}
 		}
 	}
-	return gasCounter.Load()
+	return time.Since(startTime).Seconds(), gasCounter.Load()
 }

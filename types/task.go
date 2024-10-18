@@ -64,6 +64,14 @@ func (t *Task) AddPrizeVersion(version *mv.Version) {
 	t.PrizeVersions = append(t.PrizeVersions, version)
 }
 
+func (t *Task) MarkDefered() {
+	t.RwSet = nil
+	t.ReadVersions = nil
+	t.WriteVersions = nil
+	t.PrizeVersions = nil
+	t.Tid = utils.NewID(t.Tid.BlockNumber, t.Tid.TxIndex, t.Tid.Incarnation+1)
+}
+
 func (t *Task) Wait() {
 	for _, version := range t.ReadVersions {
 		version.Mu.Lock()

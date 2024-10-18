@@ -10,7 +10,6 @@ import (
 	"blockConcur/schedule"
 	"blockConcur/state"
 	types2 "blockConcur/types"
-	"blockConcur/utils"
 	"fmt"
 	"sort"
 	"sync"
@@ -54,7 +53,7 @@ func processDeferedTasks(deferedTasks types2.Tasks, is_serial bool, use_graph bo
 		evm := vm.NewEVM(execCtx.BlockCtx, evmtypes.TxContext{}, execCtx.ExecState, execCtx.ChainCfg, vm.Config{})
 		for _, task := range deferedTasks {
 			// give task a new ID, the incarnation number will be set to 1
-			task.Tid = utils.NewID(task.Tid.BlockNumber, task.Tid.TxIndex, 1)
+			task.MarkDefered()
 			execCtx.SetTask(task, nil)
 			evm.TxContext = execCtx.TxCtx
 			msg := task.Msg
@@ -71,7 +70,8 @@ func processDeferedTasks(deferedTasks types2.Tasks, is_serial bool, use_graph bo
 		}
 		occdaTasks := occdacore.GenerateOCCDATasks(deferedTasks)
 		h_txs, tidToTaskIdx := occdacore.OCCDAInitialize(occdaTasks, graph)
-		totalGas += occdacore.OCCDAMain(occdaTasks, h_txs, tidToTaskIdx, processor_num, mvCache, header, headers, chainCfg)
+		_, totalGas = occdacore.OCCDAMain(occdaTasks, h_txs, tidToTaskIdx, processor_num, mvCache, header, headers, chainCfg)
+
 	}
 	return totalGas
 }

@@ -33,7 +33,7 @@ func TestSingleBlock(t *testing.T) {
 		ibs_bak := env.GetIBS(uint64(blockNum), dbTx)
 		headers := env.FetchHeaders(blockNum-256, blockNum)
 		tasks := helper.GenerateAccurateRwSets(block.Transactions(), header, headers, ibs_bak, convertNum)
-		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 0), block.Withdrawals(), header.Coinbase)
+		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum+1), -1, 0), block.Withdrawals(), header.Coinbase)
 
 		cost_prefetch, rwAccessedBy := pipeline.Prefetch(tasks, post_block_task, fetchPool, ivPool)
 		cost_graph, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)
@@ -110,6 +110,7 @@ func TestSingleBlockPredict(t *testing.T) {
 	defer dbTx.Rollback()
 	ibs := env.GetIBS(uint64(startNum), dbTx)
 	mvCache := state.NewMvCache(ibs, cacheSize)
+	headers := env.FetchHeaders(startNum-256, endNum)
 	fetchPool, ivPool := pipeline.GeneratePools(mvCache, fetchPoolSize, ivPoolSize)
 
 	var totalTps, totalGps, totalInmemTps, totalInmemGps float64
@@ -119,9 +120,8 @@ func TestSingleBlockPredict(t *testing.T) {
 	for blockNum := startNum; blockNum < endNum; blockNum++ {
 		block, header := env.GetBlockAndHeader(uint64(blockNum))
 		ibs_bak := env.GetIBS(uint64(blockNum), dbTx)
-		headers := env.FetchHeaders(blockNum-256, blockNum)
 		tasks := helper.GeneratePredictRwSets(block.Transactions(), header, headers, ibs_bak, convertNum)
-		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 0), block.Withdrawals(), header.Coinbase)
+		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum+1), -1, 0), block.Withdrawals(), header.Coinbase)
 
 		cost_prefetch, rwAccessedBy := pipeline.Prefetch(tasks, post_block_task, fetchPool, ivPool)
 		cost_graph, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)

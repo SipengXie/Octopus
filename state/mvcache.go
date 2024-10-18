@@ -239,7 +239,7 @@ func (mvs *MvCache) GarbageCollection(balanceUpdate map[common.Address]*uint256.
 func (mvc *MvCache) Fetch(addr common.Address, hash common.Hash) interface{} {
 	key := utils.MakeKey(addr, hash)
 	vc, ok := mvc.get_or_new_vc(key)
-	if ok {
+	if ok && vc.GetCommittedVersion().Data != nil {
 		return vc.GetCommittedVersion().Data
 	}
 	// fetch the data from the snapshot

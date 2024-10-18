@@ -186,7 +186,7 @@ func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool, refunds bool, gasBailou
 	defer func() {
 		if r := recover(); r != nil {
 			result = nil
-			err = r.(error)
+			err = fmt.Errorf("%v", r)
 		}
 	}() // the deferred function is executed when the function returns, could be commented out when debugging
 	return NewStateTransition(evm, msg, gp).TransitionDb(refunds, gasBailout)

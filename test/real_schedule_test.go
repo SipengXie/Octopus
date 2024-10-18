@@ -32,7 +32,7 @@ func TestRealSchedule(t *testing.T) {
 		ibs_bak := env.GetIBS(uint64(blockNum), dbTx)
 		headers := env.FetchHeaders(blockNum-256, blockNum)
 		tasks := helper.GenerateAccurateRwSets(block.Transactions(), header, headers, ibs_bak, convertNum)
-		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 0), block.Withdrawals(), header.Coinbase)
+		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum+1), -1, 0), block.Withdrawals(), header.Coinbase)
 
 		_, rwAccessedBy := pipeline.Prefetch(tasks, post_block_task, fetchPool, ivPool)
 		_, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)

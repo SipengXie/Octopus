@@ -8,8 +8,8 @@ import (
 	"strconv"
 )
 
-const startNum uint64 = 18511000
-const endNum uint64 = 20000000
+const startNum uint64 = 18510000
+const endNum uint64 = 18511000
 const cacheSize = 8192 << 1
 const use_tree_threshold = 10000
 const early_abort bool = true
@@ -18,7 +18,7 @@ const early_abort bool = true
 // cpu resources.
 var fetchPoolSize = runtime.NumCPU() / 2
 var ivPoolSize = runtime.NumCPU() / 2
-var processorNum = 2
+var processorNum = 16
 var convertNum = runtime.NumCPU()
 var use_tree = func(i int) bool {
 	return i >= use_tree_threshold
