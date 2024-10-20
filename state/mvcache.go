@@ -127,12 +127,21 @@ func (mvc *MvCache) Validate(ibs *IntraBlockState) *utils.ID {
 			ibs.GetState(addr, &hash, &stateValue)
 			ibsValue = &stateValue
 		}
-		if hash == utils.CODEHASH {
-			if isEmptyCodeHash(ibsValue.(common.Hash)) && isEmptyCodeHash(lastCommit.Data.(common.Hash)) {
-				continue
-			}
-		}
 		if !reflect.DeepEqual(ibsValue, lastCommit.Data) {
+			if hash == utils.CODEHASH {
+				if isEmptyCodeHash(ibsValue.(common.Hash)) && isEmptyCodeHash(lastCommit.Data.(common.Hash)) {
+					continue
+				}
+			}
+			if hash != utils.BALANCE && hash != utils.NONCE && hash != utils.EXIST && hash != utils.CODEHASH && hash != utils.CODE {
+				vc, _ := mvc.vcCache.Peek(utils.MakeKey(addr, utils.EXIST))
+				is_alive := vc.GetCommittedVersion().Data.(bool)
+				if !is_alive {
+					if ibsValue.(*uint256.Int).IsZero() && !lastCommit.Data.(*uint256.Int).IsZero() {
+						continue
+					}
+				}
+			}
 			if lastCommit.Tid.Less(minTid) {
 				minTid = lastCommit.Tid
 			}
@@ -303,9 +312,10 @@ func (mvc *MvCache) FetchPrize(TxId *utils.ID) *uint256.Int {
 	ret := uint256.NewInt(0)
 	cur := mvc.prizeChain.Head
 	for cur != nil && cur.Tid.Less(TxId) {
-		if cur.Status == mv.Pending {
-			panic("pevious prize is pending, this transaction should not be executed")
-		}
+		cur.Wait()
+		// if cur.Status == mv.Pending {
+		// 	panic("pevious prize is pending, this transaction should not be executed")
+		// }
 		if cur.Data != nil && cur.Status == mv.Committed {
 			ret = ret.Add(ret, cur.Data.(*uint256.Int))
 		}

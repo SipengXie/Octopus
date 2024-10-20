@@ -116,7 +116,7 @@ func (pt *ProcessorTree) Execute() {
 			pt.execCtx.SetTask(task, newRwSet)
 		}
 		evm.TxContext = pt.execCtx.TxCtx
-		task.Wait() // waiting for the task to be ready
+		// task.Wait() // waiting for the task to be ready
 		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err == nil {
 			pt.totalGas += res.UsedGas

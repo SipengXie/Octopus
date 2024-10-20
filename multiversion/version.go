@@ -74,8 +74,8 @@ func (v *Version) GetVisible() *Version {
 	if v == nil {
 		return nil
 	}
+	v.Wait()
 	if v.Status != Committed {
-		// v.print()
 		return v.Prev.GetVisible()
 	}
 	return v
@@ -91,4 +91,12 @@ func (v *Version) Settle(status Status, value interface{}) {
 
 func (v *Version) IsSnapshot() bool {
 	return v.Tid.TxIndex == -1
+}
+
+func (v *Version) Wait() {
+	v.Mu.Lock()
+	for v.Status == Pending {
+		v.Cond.Wait()
+	}
+	v.Mu.Unlock()
 }

@@ -135,14 +135,15 @@ func (pl *ProcessorList) Execute() {
 
 		// var tracer vm.EVMLogger
 		// var evm *vm.EVM
-		// if task.TxHash == common.HexToHash("0x82491091221b3be74ddb85b9351e2dabc8c77582cad4783d8f85dd0ff0d2b73f") {
+		// if task.TxHash == common.HexToHash("0xd1d93049b9dbd0120bdc1df87dfd87181b5219e17811a60b6671ba7bab656baa") {
 		// 	tracer = helper.NewStructLogger(&helper.LogConfig{})
 		// 	evm = vm.NewEVM(pl.execCtx.BlockCtx, pl.execCtx.TxCtx, pl.execCtx.ExecState, pl.execCtx.ChainCfg, vm.Config{Debug: true, Tracer: tracer})
+		// 	fmt.Println(pl.execCtx.ExecState.GetBalance(common.HexToAddress("0xb3D9cf8E163bbc840195a97E81F8A34E295B8f39")))
 		// } else {
 		// 	evm = vm.NewEVM(pl.execCtx.BlockCtx, pl.execCtx.TxCtx, pl.execCtx.ExecState, pl.execCtx.ChainCfg, vm.Config{})
 		// }
 
-		task.Wait() // waiting for the task to be ready
+		// task.Wait() // waiting for the task to be ready
 		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err == nil {
 			pl.totalGas += res.UsedGas

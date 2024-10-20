@@ -36,7 +36,7 @@ func TestOCCDAIntegration(t *testing.T) {
 		block, header := env.GetBlockAndHeader(uint64(blockNum))
 		ibs_bak := env.GetIBS(uint64(blockNum), dbTx)
 		tasks := helper.GenerateAccurateRwSets(block.Transactions(), header, headers, ibs_bak, convertNum)
-		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum+1), -1, 0), block.Withdrawals(), header.Coinbase)
+		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 1), block.Withdrawals(), header.Coinbase)
 		withdrawals := block.Withdrawals()
 		cost_graph, graph := pipeline.GenerateGraph(tasks, pipeline.GenerateAccessedBy(tasks))
 
@@ -79,6 +79,13 @@ func TestOCCDAIntegration(t *testing.T) {
 
 		//TODO: there're mistakes when validating the result
 		// but we don't care about that now
+		nxt_ibs := env.GetIBS(uint64(blockNum+1), dbTx)
+		tid := mvCache.Validate(nxt_ibs)
+		if tid != nil {
+			fmt.Println(tid)
+			fmt.Println(tasks[tid.TxIndex].TxHash.Hex())
+			panic("incorrect results")
+		}
 	}
 
 	// Calculate and print performance metrics

@@ -45,7 +45,7 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 
 		startTime := time.Now()
 		totalGas := uint64(0)
-		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum+1), -1, 0), withdrawals, header.Coinbase)
+		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 1), withdrawals, header.Coinbase)
 		balanceUpdate := make(map[common.Address]*uint256.Int)
 		for _, withdrawal := range withdrawals {
 			balance, ok := balanceUpdate[withdrawal.Address]
