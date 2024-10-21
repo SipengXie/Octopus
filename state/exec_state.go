@@ -354,44 +354,26 @@ func (s *ExecState) SetTransientState(addr common.Address, key common.Hash, valu
 func (s *ExecState) Selfdestruct(addr common.Address) bool {
 	s.is_valid_write(addr, utils.EXIST)
 	s.is_valid_write(addr, utils.BALANCE)
-	// s.is_valid_write(addr, utils.NONCE)
-	// s.is_valid_write(addr, utils.CODE)
-	// s.is_valid_write(addr, utils.CODEHASH)
 	if !s.Exist(addr) {
 		return false
 	}
 	s.NewRwSet.AddWriteSet(addr, utils.EXIST)
 	s.NewRwSet.AddWriteSet(addr, utils.BALANCE)
-	// s.NewRwSet.AddWriteSet(addr, utils.NONCE)
-	// s.NewRwSet.AddWriteSet(addr, utils.CODE)
-	// s.NewRwSet.AddWriteSet(addr, utils.CODEHASH)
 	prev, ok1 := s.LocalWriter.hasSelfdestructed(addr)
 	prevBalance, ok2 := s.LocalWriter.getBalance(addr)
 	if !ok2 {
 		prevBalance = uint256.NewInt(0)
 	}
-	// prevNonce, ok3 := s.LocalWriter.getNonce(addr)
-	// prevCode, ok4 := s.LocalWriter.getCode(addr)
-	// prevHash, ok5 := s.LocalWriter.getCodeHash(addr)
 
 	s.journal.append(selfdestructChange{
-		account:     &addr,
-		prev:        !prev,
-		prevbalance: *prevBalance,
-		// prevnonce:      prevNonce,
-		// prevcode:       prevCode,
-		// prevhash:       prevHash,
+		account:       &addr,
+		prev:          !prev,
+		prevbalance:   *prevBalance,
 		found_exist:   ok1,
 		found_balance: ok2,
-		// found_nonce:    ok3,
-		// found_code:     ok4,
-		// found_codehash: ok5,
 	})
 	s.LocalWriter.delete(addr)
 	s.LocalWriter.setBalance(addr, uint256.NewInt(0))
-	// s.LocalWriter.setNonce(addr, 0)
-	// s.LocalWriter.setCode(addr, nil)
-	// s.LocalWriter.setCodeHash(addr, crypto.Keccak256Hash(nil))
 	return true
 }
 
@@ -405,8 +387,18 @@ func (s *ExecState) HasSelfdestructed(addr common.Address) bool {
 	return selfdestructed
 }
 
+func (s *ExecState) newlyCreated(addr common.Address) bool {
+	exist, ok := s.LocalWriter.storage[addr][utils.EXIST]
+	if !ok {
+		return false
+	}
+	return exist.(bool)
+}
+
 func (s *ExecState) Selfdestruct6780(addr common.Address) {
-	s.Selfdestruct(addr)
+	if s.newlyCreated(addr) {
+		s.Selfdestruct(addr)
+	}
 }
 
 func (s *ExecState) Exist(addr common.Address) bool {

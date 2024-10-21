@@ -8,17 +8,17 @@ import (
 	"strconv"
 )
 
-const startNum uint64 = 18510000
-const endNum uint64 = 18511000
+const startNum uint64 = 19452425
+const endNum uint64 = 19452524
 const cacheSize = 8192
 const use_tree_threshold = 10000
 const early_abort bool = true
 
 // for signle block, fetchPool, ivPool and processors will not content on the
 // cpu resources.
-var fetchPoolSize = runtime.NumCPU() / 2
-var ivPoolSize = runtime.NumCPU() / 2
-var processorNum = 32
+var fetchPoolSize = runtime.NumCPU()
+var ivPoolSize = runtime.NumCPU()
+var processorNum = 2
 var convertNum = runtime.NumCPU()
 var use_tree = func(i int) bool {
 	return i >= use_tree_threshold
@@ -52,4 +52,26 @@ func GetProcessorNumFromEnv() int {
 		}
 	}
 	return processorNum
+}
+
+// Get START_NUM from environment variable
+func GetStartNumFromEnv() uint64 {
+	startNumStr := os.Getenv("START_NUM")
+	if startNumStr != "" {
+		if num, err := strconv.ParseUint(startNumStr, 10, 64); err == nil {
+			return num
+		}
+	}
+	return startNum
+}
+
+// Get END_NUM from environment variable
+func GetEndNumFromEnv() uint64 {
+	endNumStr := os.Getenv("END_NUM")
+	if endNumStr != "" {
+		if num, err := strconv.ParseUint(endNumStr, 10, 64); err == nil {
+			return num
+		}
+	}
+	return endNum
 }

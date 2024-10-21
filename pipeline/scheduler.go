@@ -42,8 +42,8 @@ func Schedule(graph *dag.Graph, useTree bool, numWorker int, mode MODE) (float64
 	var method schedule.Method
 	switch mode {
 	case BlkConcur:
-		processors, makespan, method = scheduleAgg.Schedule()
-		// processors, makespan, method = scheduleAgg.ScheduleEFT()
+		// processors, makespan, method = scheduleAgg.Schedule()
+		processors, makespan, method = scheduleAgg.ScheduleEFT()
 	case OCCDA_MOCK:
 		processors, makespan, method = scheduleAgg.ScheduleOCCDA()
 	case QUECC_MOCK:

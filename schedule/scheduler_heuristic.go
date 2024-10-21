@@ -4,6 +4,7 @@ import (
 	"blockConcur/graph"
 	"blockConcur/utils"
 	"container/heap"
+	"math/rand"
 	"sync"
 )
 
@@ -111,14 +112,26 @@ func (s *SchedulerHeur) selectBestProcessor(tWrap *TaskWrapper) {
 		return
 	}
 	var pid int = 0
-	var tempValue eftResult // TODO: implement
+	var tempValue eftResult
+	var bestProcessors []int
+
 	for id, p := range s.processors {
 		res := p.FindEFT(tWrap)
 		if res.IsLessThan(tempValue) {
 			pid = id
 			tempValue = res
+			bestProcessors = []int{id}
+		} else if res.Equals(tempValue) {
+			bestProcessors = append(bestProcessors, id)
 		}
 	}
+
+	if len(bestProcessors) > 1 {
+		// Randomly select one of the best processors
+		randomIndex := rand.Intn(len(bestProcessors))
+		pid = bestProcessors[randomIndex]
+	}
+
 	tWrap.EFT = tempValue.EFT()
 	tWrap.AST = tWrap.EFT - tWrap.Task.Cost
 	s.processors[pid].AddTask(tWrap, tempValue)

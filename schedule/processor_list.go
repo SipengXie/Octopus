@@ -28,6 +28,10 @@ func (l *listEft) IsLessThan(e eftResult) bool {
 	return e == nil || l.EFT() < e.EFT()
 }
 
+func (l *listEft) Equals(e eftResult) bool {
+	return l.EFT() == e.EFT()
+}
+
 func (l *listEft) EFT() uint64 {
 	return l.eft
 }

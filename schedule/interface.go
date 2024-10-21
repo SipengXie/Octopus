@@ -8,6 +8,7 @@ import (
 
 type eftResult interface {
 	IsLessThan(eftResult) bool
+	Equals(eftResult) bool
 	EFT() uint64
 }
 

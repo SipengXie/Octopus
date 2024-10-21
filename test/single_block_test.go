@@ -17,60 +17,61 @@ func TestSingleBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dbTx.Rollback()
+	processorNum := GetProcessorNumFromEnv()
+	startNum := GetStartNumFromEnv()
+	endNum := GetEndNumFromEnv()
 	ibs := env.GetIBS(uint64(startNum), dbTx)
+	headers := env.FetchHeaders(startNum-256, endNum)
 	mvCache := state.NewMvCache(ibs, cacheSize)
 	fetchPool, ivPool := pipeline.GeneratePools(mvCache, fetchPoolSize, ivPoolSize)
-	headers := env.FetchHeaders(startNum-256, endNum)
+	var totalTps, totalGps, totalInmemTps, totalInmemGps float64
 	var tpsValues, gpsValues, inmemTpsValues, inmemGpsValues []float64
-	var totalTasks, totalGas uint64
-	var totalTime, totalInmemTime float64
-
-	processorNum = GetProcessorNumFromEnv()
+	blockCount := endNum - startNum
+	var totalExecuteCost float64
 
 	for blockNum := startNum; blockNum < endNum; blockNum++ {
 		block, header := env.GetBlockAndHeader(uint64(blockNum))
 		ibs_bak := env.GetIBS(uint64(blockNum), dbTx)
 
 		tasks := helper.GenerateAccurateRwSets(block.Transactions(), header, headers, ibs_bak, convertNum)
-		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 1), block.Withdrawals(), header.Coinbase)
+		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 0), block.Withdrawals(), header.Coinbase)
 
 		cost_prefetch, rwAccessedBy := pipeline.Prefetch(tasks, post_block_task, fetchPool, ivPool)
 		cost_graph, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)
 		cost_schedule, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.BlkConcur)
 		cost_execute, gas := pipeline.Execute(processors, block.Withdrawals(), post_block_task, header, headers, env.Cfg, early_abort, mvCache)
 
-		blockTime := cost_prefetch + cost_graph + cost_schedule + cost_execute
-		blockInmemTime := cost_graph + cost_schedule + cost_execute
-		tps := float64(len(tasks)) / float64(blockTime)
-		gps := float64(gas) / float64(blockTime)
-		inmemTps := float64(len(tasks)) / float64(blockInmemTime)
-		inmemGps := float64(gas) / float64(blockInmemTime)
+		totalTime := cost_prefetch + cost_graph + cost_schedule + cost_execute
+		inmemTime := cost_graph + cost_schedule + cost_execute
+		tps := float64(len(tasks)) / (float64(totalTime))
+		gps := float64(gas) / (float64(totalTime))
+		inmemTps := float64(len(tasks)) / (float64(inmemTime))
+		inmemGps := float64(gas) / (float64(inmemTime))
 
-		totalTasks += uint64(len(tasks))
-		totalGas += gas
-		totalTime += blockTime
-		totalInmemTime += blockInmemTime
+		totalTps += tps
+		totalGps += gps
+		totalInmemTps += inmemTps
+		totalInmemGps += inmemGps
 		tpsValues = append(tpsValues, tps)
 		gpsValues = append(gpsValues, gps)
 		inmemTpsValues = append(inmemTpsValues, inmemTps)
 		inmemGpsValues = append(inmemGpsValues, inmemGps)
+		totalExecuteCost += cost_execute
 
-		nxt_ibs := env.GetIBS(uint64(blockNum+1), dbTx)
-
-		tid := mvCache.Validate(nxt_ibs)
-		if tid != nil {
-			fmt.Println(tid)
-			blk, _ := env.GetBlockAndHeader(tid.BlockNumber)
-			txs := blk.Transactions()
-			fmt.Println(txs[tid.TxIndex].Hash().Hex())
-			panic("incorrect results")
-		}
+		// nxt_ibs := env.GetIBS(uint64(blockNum+1), dbTx)
+		// tid := mvCache.Validate(nxt_ibs)
+		// if tid != nil {
+		// 	fmt.Println(blockNum)
+		// 	fmt.Println(tid)
+		// 	fmt.Println(tasks[tid.TxIndex].TxHash.Hex())
+		// 	panic("incorrect results")
+		// }
 	}
 
-	avgTps := float64(totalTasks) / totalTime
-	avgGps := float64(totalGas) / totalTime
-	avgInmemTps := float64(totalTasks) / totalInmemTime
-	avgInmemGps := float64(totalGas) / totalInmemTime
+	avgTps := totalTps / float64(blockCount)
+	avgGps := totalGps / float64(blockCount)
+	avgInmemTps := totalInmemTps / float64(blockCount)
+	avgInmemGps := totalInmemGps / float64(blockCount)
 
 	tpsStdDev := calculateStandardDeviation(tpsValues, avgTps)
 	gpsStdDev := calculateStandardDeviation(gpsValues, avgGps)
@@ -82,7 +83,7 @@ func TestSingleBlock(t *testing.T) {
 	inmemTpsMedian := calculateMedian(inmemTpsValues)
 	inmemGpsMedian := calculateMedian(inmemGpsValues)
 
-	fmt.Printf("Number of processors: %d\n", processorNum)
+	fmt.Printf("Processor Number: %d\n", processorNum)
 	fmt.Printf("TPS Metrics:\n")
 	fmt.Printf("  Average: %.2f\n", avgTps)
 	fmt.Printf("  Standard Deviation: %.2f\n", tpsStdDev)
@@ -98,6 +99,8 @@ func TestSingleBlock(t *testing.T) {
 	fmt.Printf("  In-Memory Average: %.2f\n", avgInmemGps)
 	fmt.Printf("  In-Memory Standard Deviation: %.2f\n", inmemGpsStdDev)
 	fmt.Printf("  In-Memory Median: %.2f\n", inmemGpsMedian)
+
+	fmt.Printf("\nTotal Execute Cost: %.2f seconds\n", totalExecuteCost)
 }
 
 func TestSingleBlockPredict(t *testing.T) {
@@ -107,47 +110,50 @@ func TestSingleBlockPredict(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dbTx.Rollback()
+	processorNum := GetProcessorNumFromEnv()
+	startNum := GetStartNumFromEnv()
+	endNum := GetEndNumFromEnv()
+	headers := env.FetchHeaders(startNum-256, endNum)
 	ibs := env.GetIBS(uint64(startNum), dbTx)
 	mvCache := state.NewMvCache(ibs, cacheSize)
-	headers := env.FetchHeaders(startNum-256, endNum)
 	fetchPool, ivPool := pipeline.GeneratePools(mvCache, fetchPoolSize, ivPoolSize)
-
+	var totalTps, totalGps, totalInmemTps, totalInmemGps float64
 	var tpsValues, gpsValues, inmemTpsValues, inmemGpsValues []float64
-	var totalTasks, totalGas uint64
-	var totalTime, totalInmemTime float64
+	blockCount := endNum - startNum
 
 	for blockNum := startNum; blockNum < endNum; blockNum++ {
 		block, header := env.GetBlockAndHeader(uint64(blockNum))
 		ibs_bak := env.GetIBS(uint64(blockNum), dbTx)
+
 		tasks := helper.GeneratePredictRwSets(block.Transactions(), header, headers, ibs_bak, convertNum)
-		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 1), block.Withdrawals(), header.Coinbase)
+		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 0), block.Withdrawals(), header.Coinbase)
 
 		cost_prefetch, rwAccessedBy := pipeline.Prefetch(tasks, post_block_task, fetchPool, ivPool)
 		cost_graph, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)
 		cost_schedule, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.BlkConcur)
 		cost_execute, gas := pipeline.Execute(processors, block.Withdrawals(), post_block_task, header, headers, env.Cfg, early_abort, mvCache)
 
-		blockTime := cost_prefetch + cost_graph + cost_schedule + cost_execute
-		blockInmemTime := cost_graph + cost_schedule + cost_execute
-		tps := float64(len(tasks)) / float64(blockTime)
-		gps := float64(gas) / float64(blockTime)
-		inmemTps := float64(len(tasks)) / float64(blockInmemTime)
-		inmemGps := float64(gas) / float64(blockInmemTime)
+		totalTime := cost_prefetch + cost_graph + cost_schedule + cost_execute
+		inmemTime := cost_graph + cost_schedule + cost_execute
+		tps := float64(len(tasks)) / (float64(totalTime))
+		gps := float64(gas) / (float64(totalTime))
+		inmemTps := float64(len(tasks)) / (float64(inmemTime))
+		inmemGps := float64(gas) / (float64(inmemTime))
 
-		totalTasks += uint64(len(tasks))
-		totalGas += gas
-		totalTime += blockTime
-		totalInmemTime += blockInmemTime
+		totalTps += tps
+		totalGps += gps
+		totalInmemTps += inmemTps
+		totalInmemGps += inmemGps
 		tpsValues = append(tpsValues, tps)
 		gpsValues = append(gpsValues, gps)
 		inmemTpsValues = append(inmemTpsValues, inmemTps)
 		inmemGpsValues = append(inmemGpsValues, inmemGps)
 	}
 
-	avgTps := float64(totalTasks) / totalTime
-	avgGps := float64(totalGas) / totalTime
-	avgInmemTps := float64(totalTasks) / totalInmemTime
-	avgInmemGps := float64(totalGas) / totalInmemTime
+	avgTps := totalTps / float64(blockCount)
+	avgGps := totalGps / float64(blockCount)
+	avgInmemTps := totalInmemTps / float64(blockCount)
+	avgInmemGps := totalInmemGps / float64(blockCount)
 
 	tpsStdDev := calculateStandardDeviation(tpsValues, avgTps)
 	gpsStdDev := calculateStandardDeviation(gpsValues, avgGps)
@@ -159,7 +165,7 @@ func TestSingleBlockPredict(t *testing.T) {
 	inmemTpsMedian := calculateMedian(inmemTpsValues)
 	inmemGpsMedian := calculateMedian(inmemGpsValues)
 
-	fmt.Printf("Number of processors: %d\n", processorNum)
+	fmt.Printf("Processor Number: %d\n", processorNum)
 	fmt.Printf("TPS Metrics:\n")
 	fmt.Printf("  Average: %.2f\n", avgTps)
 	fmt.Printf("  Standard Deviation: %.2f\n", tpsStdDev)

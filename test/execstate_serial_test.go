@@ -30,14 +30,16 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 	defer dbTx.Rollback()
 
 	cfg := params.MainnetChainConfig
+	startNum := GetStartNumFromEnv()
+	endNum := GetEndNumFromEnv()
 	ibs := env.GetIBS(uint64(startNum), dbTx)
 	mvCache := state.NewMvCache(ibs, cacheSize)
+	headers := env.FetchHeaders(startNum-256, endNum)
 
 	for blockNum := startNum; blockNum < endNum; blockNum++ {
 		block, header := env.GetBlockAndHeader(uint64(blockNum))
 		txs := block.Transactions()
 		withdrawals := block.Withdrawals()
-		headers := env.FetchHeaders(blockNum-256, blockNum)
 		tasks := helper.ConvertTxToTasks(txs, header, convertNum)
 		execCtx := eutils.NewExecContext(header, headers, cfg, false)
 		execState := state.NewForRun(mvCache, header.Coinbase, early_abort)

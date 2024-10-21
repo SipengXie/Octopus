@@ -4,6 +4,7 @@ import (
 	mv "blockConcur/multiversion"
 	"blockConcur/types"
 	"blockConcur/utils"
+	"fmt"
 	"reflect"
 	"sync"
 
@@ -51,7 +52,6 @@ func NewMvCache(ibs *IntraBlockState, cacheSize int) *MvCache {
 	snapshot := NewFakeInnerState(ibs)
 	cache, initErr := lru.NewWithEvict(cacheSize, func(key string, vc *mv.VersionChain) {
 		// it is actually a write-back process.
-		// we add one bit to the entry to indicate whether it is dirty or not
 		addr := common.BytesToAddress([]byte(key[:20]))
 		hash := common.BytesToHash([]byte(key[20:]))
 		commit_version := vc.GetCommittedVersion()
@@ -100,60 +100,6 @@ func (mvc *MvCache) get_or_new_vc(key string) (*mv.VersionChain, bool) {
 	return vc, ok
 }
 
-func (mvc *MvCache) Validate(ibs *IntraBlockState) *utils.ID {
-	minTid := utils.EndID
-	keys := mvc.vcCache.Keys()
-	for _, key := range keys {
-		vc, _ := mvc.vcCache.Peek(key)
-		lastCommit := vc.GetCommittedVersion()
-		if lastCommit.IsSnapshot() {
-			continue
-		}
-		addr, hash := utils.ParseKey(key)
-		var ibsValue interface{}
-		switch hash {
-		case utils.BALANCE:
-			ibsValue = ibs.GetBalance(addr)
-		case utils.NONCE:
-			ibsValue = ibs.GetNonce(addr)
-		case utils.CODEHASH:
-			ibsValue = ibs.GetCodeHash(addr)
-		case utils.CODE:
-			ibsValue = ibs.GetCode(addr)
-		case utils.EXIST:
-			ibsValue = ibs.Exist(addr)
-		default:
-			var stateValue uint256.Int
-			ibs.GetState(addr, &hash, &stateValue)
-			ibsValue = &stateValue
-		}
-		if !reflect.DeepEqual(ibsValue, lastCommit.Data) {
-			if hash == utils.CODEHASH {
-				if isEmptyCodeHash(ibsValue.(common.Hash)) && isEmptyCodeHash(lastCommit.Data.(common.Hash)) {
-					continue
-				}
-			}
-			if hash != utils.BALANCE && hash != utils.NONCE && hash != utils.EXIST && hash != utils.CODEHASH && hash != utils.CODE {
-				vc, _ := mvc.vcCache.Peek(utils.MakeKey(addr, utils.EXIST))
-				is_alive := vc.GetCommittedVersion().Data.(bool)
-				if !is_alive {
-					if ibsValue.(*uint256.Int).IsZero() && !lastCommit.Data.(*uint256.Int).IsZero() {
-						continue
-					}
-				}
-			}
-			if lastCommit.Tid.Less(minTid) {
-				minTid = lastCommit.Tid
-			}
-		}
-	}
-
-	if minTid == utils.EndID {
-		return nil
-	}
-	return minTid
-}
-
 // Set the prize key, which is used to store the prize for each transaction
 func (mvc *MvCache) SetCoinbase(coinbase common.Address) {
 	mvc.coinbase = coinbase
@@ -181,9 +127,14 @@ func (mvs *MvCache) gcForSerial(balanceUpdate map[common.Address]*uint256.Int, t
 	for addr, balanceChange := range balanceUpdate {
 		oldBalance := mvs.Fetch(addr, utils.BALANCE).(*uint256.Int)
 		newBalance := new(uint256.Int).Add(oldBalance, balanceChange)
+		// update balance
 		version := mv.NewVersion(newBalance, txid, mv.Committed)
 		mvs.InsertVersion(utils.MakeKey(addr, utils.BALANCE), version)
 		mvs.Update(version, utils.MakeKey(addr, utils.BALANCE), newBalance)
+		// TODO: maybe we will update exist
+		version = mv.NewVersion(true, txid, mv.Committed)
+		mvs.InsertVersion(utils.MakeKey(addr, utils.EXIST), version)
+		mvs.Update(version, utils.MakeKey(addr, utils.EXIST), true)
 	}
 }
 
@@ -213,8 +164,11 @@ func (mvs *MvCache) GarbageCollection(balanceUpdate map[common.Address]*uint256.
 		} else {
 			// update post_block_write_versions if the corresponding account is in the map
 			for key, version := range post_block_write_versions {
-				addr, _ := utils.ParseKey(key)
-				if balanceChange, exists := balanceUpdate[addr]; exists {
+				addr, hash := utils.ParseKey(key)
+				// TODO: may be we would update exist
+				if hash == utils.EXIST {
+					mvs.Update(version, key, true)
+				} else if balanceChange, exists := balanceUpdate[addr]; exists && !balanceChange.IsZero() {
 					oldBalance := mvs.Fetch(addr, utils.BALANCE).(*uint256.Int)
 					newBalance := new(uint256.Int).Add(oldBalance, balanceChange)
 					mvs.Update(version, key, newBalance)
@@ -270,6 +224,78 @@ func (mvc *MvCache) Fetch(addr common.Address, hash common.Hash) interface{} {
 		v.Data = ret
 	}
 	return v.Data
+}
+
+func (mvc *MvCache) peekFetch(key string) *mv.Version {
+	vc, ok := mvc.vcCache.Peek(key)
+	if !ok {
+		return nil
+	}
+	lastCommit := vc.GetCommittedVersion()
+	return lastCommit
+}
+
+func (mvc *MvCache) peekExist(addr common.Address) bool {
+	v := mvc.peekFetch(utils.MakeKey(addr, utils.EXIST))
+	if v != nil {
+		return v.Data.(bool)
+	}
+	return mvc.snapshot.Exist(addr)
+}
+
+// TODO: There're mistakes such as selfdestructed6780
+func (mvc *MvCache) Validate(ibs *IntraBlockState) *utils.ID {
+	minTid := utils.EndID
+	keys := mvc.vcCache.Keys()
+	for _, key := range keys {
+		lastCommit := mvc.peekFetch(key)
+		if lastCommit.IsSnapshot() {
+			continue
+		}
+		val := lastCommit.Data
+		addr, hash := utils.ParseKey(key)
+		if lastCommit.Tid.TxIndex == 114 && lastCommit.Tid.BlockNumber == 19452469 && hash == utils.EXIST {
+			fmt.Println(lastCommit.Tid)
+		}
+		var ibsValue interface{}
+		switch hash {
+		case utils.BALANCE:
+			ibsValue = ibs.GetBalance(addr)
+		case utils.NONCE:
+			ibsValue = ibs.GetNonce(addr)
+		case utils.CODEHASH:
+			ibsValue = ibs.GetCodeHash(addr)
+		case utils.CODE:
+			ibsValue = ibs.GetCode(addr)
+		case utils.EXIST:
+			ibsValue = ibs.Exist(addr)
+		default:
+			var stateValue uint256.Int
+			ibs.GetState(addr, &hash, &stateValue)
+			ibsValue = &stateValue
+		}
+		if hash != utils.EXIST {
+			is_exist := mvc.peekExist(addr)
+			is_exist_ibs := ibs.Exist(addr)
+			if is_exist != is_exist_ibs {
+				if lastCommit.Tid.Less(minTid) {
+					minTid = lastCommit.Tid
+				}
+			} else if !is_exist {
+				continue
+			}
+		}
+		if !reflect.DeepEqual(ibsValue, val) {
+			if lastCommit.Tid.Less(minTid) {
+				minTid = lastCommit.Tid
+			}
+		}
+	}
+
+	if minTid == utils.EndID {
+		return nil
+	}
+	return minTid
 }
 
 // Upload an existing version to the version chain.

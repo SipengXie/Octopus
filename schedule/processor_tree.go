@@ -23,6 +23,10 @@ func (ter *treeEftResult) IsLessThan(other eftResult) bool {
 	return other == nil || ter.EFT() < other.EFT()
 }
 
+func (ter *treeEftResult) Equals(other eftResult) bool {
+	return ter.EFT() == other.EFT()
+}
+
 func (ter *treeEftResult) EFT() uint64 {
 	return ter.eft
 }

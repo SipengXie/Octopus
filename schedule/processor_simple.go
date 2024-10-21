@@ -20,6 +20,10 @@ func (s *simpleEftResult) IsLessThan(eftResult eftResult) bool {
 	return eftResult == nil || s.EFT() < eftResult.EFT()
 }
 
+func (s *simpleEftResult) Equals(eftResult eftResult) bool {
+	return s.EFT() == eftResult.EFT()
+}
+
 func (s *simpleEftResult) EFT() uint64 {
 	return s.eft
 }
