@@ -20,7 +20,7 @@ func NewScheduleAggregator(graph *graph.Graph, use_tree bool, numWorker int) *Sc
 }
 
 // not offical product, only for benchmark
-func (sa *ScheduleAggregator) ScheduleOCCDA() (Processors, uint64, Method) {
+func (sa *ScheduleAggregator) ScheduleHESI() (Processors, uint64, Method) {
 	processors := make(Processors, sa.numWorker)
 	for j := 0; j < sa.numWorker; j++ {
 		processors[j] = NewProcessorSimple()
@@ -33,7 +33,7 @@ func (sa *ScheduleAggregator) ScheduleOCCDA() (Processors, uint64, Method) {
 }
 
 // not offical product, only for benchmark
-func (sa *ScheduleAggregator) ScheduleQUECC() (Processors, uint64, Method) {
+func (sa *ScheduleAggregator) ScheduleLOBA() (Processors, uint64, Method) {
 	processors := make(Processors, sa.numWorker)
 	for j := 0; j < sa.numWorker; j++ {
 		processors[j] = NewProcessorSimple()
@@ -45,7 +45,7 @@ func (sa *ScheduleAggregator) ScheduleQUECC() (Processors, uint64, Method) {
 	return processors, scheduler.makespan, LOBA
 }
 
-func (sa *ScheduleAggregator) ScheduleEFT() (Processors, uint64, Method) {
+func (sa *ScheduleAggregator) ScheduleHEFT() (Processors, uint64, Method) {
 	processors := make(Processors, sa.numWorker)
 	if sa.use_tree {
 		for j := 0; j < sa.numWorker; j++ {
@@ -60,9 +60,69 @@ func (sa *ScheduleAggregator) ScheduleEFT() (Processors, uint64, Method) {
 	scheduler := NewSchedulerHeur(sa.graph, processors)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	scheduler.listSchedule(EFT, &wg)
+	scheduler.listSchedule(HEFT, &wg)
 
-	return processors, scheduler.makespan, EFT
+	return processors, scheduler.makespan, HEFT
+}
+
+func (sa *ScheduleAggregator) SchedulePEFT() (Processors, uint64, Method) {
+	processors := make(Processors, sa.numWorker)
+	if sa.use_tree {
+		for j := 0; j < sa.numWorker; j++ {
+			processors[j] = NewProcessorTree()
+		}
+	} else {
+		for j := 0; j < sa.numWorker; j++ {
+			processors[j] = NewProcessorList()
+		}
+	}
+
+	scheduler := NewSchedulerHeur(sa.graph, processors)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	scheduler.listSchedule(PEFT, &wg)
+
+	return processors, scheduler.makespan, PEFT
+}
+
+func (sa *ScheduleAggregator) ScheduleCPTL() (Processors, uint64, Method) {
+	processors := make(Processors, sa.numWorker)
+	if sa.use_tree {
+		for j := 0; j < sa.numWorker; j++ {
+			processors[j] = NewProcessorTree()
+		}
+	} else {
+		for j := 0; j < sa.numWorker; j++ {
+			processors[j] = NewProcessorList()
+		}
+	}
+
+	scheduler := NewSchedulerHeur(sa.graph, processors)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	scheduler.pqSchedule(CPTL, &wg)
+
+	return processors, scheduler.makespan, CPTL
+}
+
+func (sa *ScheduleAggregator) ScheduleCPOP() (Processors, uint64, Method) {
+	processors := make(Processors, sa.numWorker)
+	if sa.use_tree {
+		for j := 0; j < sa.numWorker; j++ {
+			processors[j] = NewProcessorTree()
+		}
+	} else {
+		for j := 0; j < sa.numWorker; j++ {
+			processors[j] = NewProcessorList()
+		}
+	}
+
+	scheduler := NewSchedulerHeur(sa.graph, processors)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	scheduler.pqSchedule(CPOP, &wg)
+
+	return processors, scheduler.makespan, CPOP
 }
 
 func (sa *ScheduleAggregator) Schedule() (Processors, uint64, Method) {
@@ -84,12 +144,12 @@ func (sa *ScheduleAggregator) Schedule() (Processors, uint64, Method) {
 
 	go func() {
 		schedulers[0] = NewSchedulerHeur(sa.graph, processors[0])
-		schedulers[0].listSchedule(EFT, &wg)
+		schedulers[0].listSchedule(HEFT, &wg)
 	}()
 
 	go func() {
 		schedulers[1] = NewSchedulerHeur(sa.graph, processors[1])
-		schedulers[1].listSchedule(CT, &wg)
+		schedulers[1].listSchedule(PEFT, &wg)
 	}()
 
 	go func() {
@@ -106,7 +166,7 @@ func (sa *ScheduleAggregator) Schedule() (Processors, uint64, Method) {
 
 	minMakespan := schedulers[0].makespan
 	retProcessors := processors[0]
-	method := EFT
+	method := HEFT
 	for i := 1; i < 4; i++ {
 		if schedulers[i].makespan < minMakespan {
 			minMakespan = schedulers[i].makespan

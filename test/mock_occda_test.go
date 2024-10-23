@@ -37,7 +37,7 @@ func TestSingleBlockOCCDA(t *testing.T) {
 		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 1), block.Withdrawals(), header.Coinbase)
 		cost_prefetch, rwAccessedBy := pipeline.Prefetch(tasks, post_block_task, fetchPool, ivPool)
 		cost_graph, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)
-		cost_schedule, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.OCCDA_MOCK)
+		cost_schedule, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.HESI)
 		cost_execute, gas := pipeline.Execute(processors, block.Withdrawals(), post_block_task, header, headers, env.Cfg, early_abort, mvCache)
 
 		totalTime := cost_prefetch + cost_graph + cost_schedule + cost_execute

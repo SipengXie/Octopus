@@ -14,9 +14,9 @@ type Method int
 
 func (m Method) String() string {
 	switch m {
-	case EFT:
+	case HEFT:
 		return "EFT"
-	case CT:
+	case PEFT:
 		return "CT"
 	case CPTL:
 		return "CPTL"
@@ -32,8 +32,8 @@ func (m Method) String() string {
 }
 
 const (
-	EFT Method = iota
-	CT
+	HEFT Method = iota
+	PEFT
 	CPTL
 	CPOP
 	HESI
@@ -67,9 +67,9 @@ func (s *SchedulerHeur) taskPrioritize(m Method) *tpResult {
 	for _, v := range s.graph.Vertices {
 		priority := uint64(0)
 		switch m {
-		case EFT:
+		case HEFT:
 			priority = v.Rank_u
-		case CT:
+		case PEFT:
 			priority = v.CT
 		}
 		tWrap := &TaskWrapper{

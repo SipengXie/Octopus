@@ -88,7 +88,7 @@ func TestListEFT(t *testing.T) {
 	eftScheduler := NewSchedulerHeur(graph, processors)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	eftScheduler.listSchedule(EFT, &wg)
+	eftScheduler.listSchedule(HEFT, &wg)
 	wg.Wait()
 	for _, processor := range processors {
 		processor.Print()
@@ -145,7 +145,7 @@ func TestListCT(t *testing.T) {
 	ctScheduler := NewSchedulerHeur(graph, processors)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	ctScheduler.listSchedule(CT, &wg)
+	ctScheduler.listSchedule(PEFT, &wg)
 	wg.Wait()
 	for _, processor := range processors {
 		processor.Print()
@@ -195,7 +195,7 @@ func TestTreeEFT(t *testing.T) {
 	eftScheduler := NewSchedulerHeur(graph, processors)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	eftScheduler.listSchedule(EFT, &wg)
+	eftScheduler.listSchedule(HEFT, &wg)
 	wg.Wait()
 	for _, processor := range processors {
 		processor.Print()
@@ -214,7 +214,7 @@ func TestTreeCT(t *testing.T) {
 	ctScheduler := NewSchedulerHeur(graph, processors)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	ctScheduler.listSchedule(CT, &wg)
+	ctScheduler.listSchedule(PEFT, &wg)
 	wg.Wait()
 	for _, processor := range processors {
 		processor.Print()

@@ -12,8 +12,12 @@ type MODE int
 
 const (
 	BlkConcur MODE = iota
-	OCCDA_MOCK
-	QUECC_MOCK
+	HESI
+	LOBA
+	HEFT
+	PEFT
+	CPTL
+	CPOP
 )
 
 type Scheduler struct {
@@ -43,11 +47,19 @@ func Schedule(graph *dag.Graph, useTree bool, numWorker int, mode MODE) (float64
 	switch mode {
 	case BlkConcur:
 		// processors, makespan, method = scheduleAgg.Schedule()
-		processors, makespan, method = scheduleAgg.ScheduleEFT()
-	case OCCDA_MOCK:
-		processors, makespan, method = scheduleAgg.ScheduleOCCDA()
-	case QUECC_MOCK:
-		processors, makespan, method = scheduleAgg.ScheduleQUECC()
+		processors, makespan, method = scheduleAgg.ScheduleHEFT()
+	case HESI:
+		processors, makespan, method = scheduleAgg.ScheduleHESI()
+	case LOBA:
+		processors, makespan, method = scheduleAgg.ScheduleLOBA()
+	case HEFT:
+		processors, makespan, method = scheduleAgg.ScheduleHEFT()
+	case PEFT:
+		processors, makespan, method = scheduleAgg.SchedulePEFT()
+	case CPTL:
+		processors, makespan, method = scheduleAgg.ScheduleCPTL()
+	case CPOP:
+		processors, makespan, method = scheduleAgg.ScheduleCPOP()
 	default:
 		panic("invalid mode")
 	}
