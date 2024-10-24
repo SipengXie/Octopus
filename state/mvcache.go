@@ -42,6 +42,8 @@ type MvCache struct {
 	snapshot   snapshotInterface
 	dirtyVc    sync.Map
 	coinbase   common.Address
+	hitCount   int // Cache hit count
+	missCount  int // Cache miss count
 }
 
 func NewMvCache(ibs *IntraBlockState, cacheSize int) *MvCache {
@@ -93,7 +95,10 @@ func NewMvCache(ibs *IntraBlockState, cacheSize int) *MvCache {
 // The newly-created version chain will be added to the cache.
 func (mvc *MvCache) get_or_new_vc(key string) (*mv.VersionChain, bool) {
 	vc, ok := mvc.vcCache.Get(key)
-	if !ok {
+	if ok {
+		mvc.hitCount++ // Increment hit count
+	} else {
+		mvc.missCount++ // Increment miss count
 		vc = mv.NewVersionChain()
 		mvc.vcCache.Add(key, vc)
 	}
@@ -354,4 +359,13 @@ func (mvc *MvCache) FetchPrize(TxId *utils.ID) *uint256.Int {
 // also collect the prize to the coinbase.
 func (mvc *MvCache) PrunePrize(TxId *utils.ID) {
 	mvc.prizeChain.Prune(TxId)
+}
+
+// Calculate and return the cache hit rate
+func (mvc *MvCache) GetHitRate() float64 {
+	total := mvc.hitCount + mvc.missCount
+	if total == 0 {
+		return 0.0
+	}
+	return float64(mvc.hitCount) / float64(total)
 }
