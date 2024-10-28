@@ -343,7 +343,7 @@ func (mvc *MvCache) FetchPrize(TxId *utils.ID) *uint256.Int {
 	ret := uint256.NewInt(0)
 	cur := mvc.prizeChain.Head
 	for cur != nil && cur.Tid.Less(TxId) {
-		cur.Wait()
+		// cur.Wait() // now we do not need the committed version
 		// if cur.Status == mv.Pending {
 		// 	panic("pevious prize is pending, this transaction should not be executed")
 		// }
@@ -355,8 +355,6 @@ func (mvc *MvCache) FetchPrize(TxId *utils.ID) *uint256.Int {
 	return ret
 }
 
-// TODO: if we want to run continously, we need to prune the prize chain in the end of each block.
-// also collect the prize to the coinbase.
 func (mvc *MvCache) PrunePrize(TxId *utils.ID) {
 	mvc.prizeChain.Prune(TxId)
 }

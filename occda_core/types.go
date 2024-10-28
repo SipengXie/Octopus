@@ -19,16 +19,15 @@ func NewOCCDATask(task *types.Task, sid *utils.ID) *OCCDATask {
 		sid:  sid,
 	}
 	ret.RwSet = nil
-	ret.PrizeVersions = nil
 	ret.ReadVersions = nil
 	ret.WriteVersions = nil
+	ret.PrizeVersions = nil
 	return ret
 }
 
 func GenerateOCCDATasks(tasks []*types.Task) []*OCCDATask {
 	ret := make([]*OCCDATask, len(tasks))
 	for i, task := range tasks {
-		task.MarkDefered()
 		ret[i] = NewOCCDATask(task, utils.SnapshotID)
 	}
 	return ret

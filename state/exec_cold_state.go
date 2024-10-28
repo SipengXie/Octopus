@@ -38,9 +38,10 @@ func (vm *versionMap) get(addr common.Address, hash common.Hash) *mv.Version {
 
 type ExecColdState struct {
 	// a shared uint256.Int
-	input_predict  *versionMap // some pointers of the inner_state
-	output_predict *versionMap // some pointers of the inner_state, only used in commit_localwrite
-	inner_state    *MvCache    // the same level as the exec_cold_states, for data that are not in input and output
+	input_predict  *versionMap   // some pointers of the inner_state
+	output_predict *versionMap   // some pointers of the inner_state, only used in commit_localwrite
+	prize_predict  []*mv.Version // some pointers of the inner_state, only used in commit_localwrite
+	inner_state    *MvCache      // the same level as the exec_cold_states, for data that are not in input and output
 }
 
 func NewExecColdState(mvc *MvCache) *ExecColdState {
@@ -52,6 +53,7 @@ func NewExecColdState(mvc *MvCache) *ExecColdState {
 func (s *ExecColdState) SetTask(task *types.Task) {
 	s.input_predict = newVersionMap(task.ReadVersions)
 	s.output_predict = newVersionMap(task.WriteVersions)
+	s.prize_predict = task.PrizeVersions
 }
 
 func (s *ExecColdState) SetCoinbase(coinbase common.Address) {
@@ -192,7 +194,18 @@ func (s *ExecColdState) HasSelfdestructed(addr common.Address) bool {
 }
 
 func (s *ExecColdState) GetPrize(TxIdx *utils.ID) *uint256.Int {
-	return s.inner_state.FetchPrize(TxIdx)
+	if len(s.prize_predict) == 0 {
+		return s.inner_state.FetchPrize(TxIdx)
+	}
+	ret := uint256.NewInt(0)
+	for _, version := range s.prize_predict {
+		version.Wait()
+		if version.Status == mv.Committed {
+			ret.Add(ret, version.Data.(*uint256.Int))
+		}
+	}
+	return ret
+	// return s.inner_state.FetchPrize(TxIdx)
 }
 
 // if we entered Commit function, then the localwrite will merge to
@@ -216,7 +229,11 @@ func (s *ExecColdState) Commit(lw *localWrite, coinbase common.Address, TxIdx *u
 		} else {
 			s.inner_state.Update(version, key, value)
 			if hash == utils.BALANCE && addr == coinbase {
-				s.inner_state.PrunePrize(TxIdx)
+				// clear the prize
+				for _, version := range s.prize_predict {
+					version.Data = uint256.NewInt(0)
+				}
+				// s.inner_state.PrunePrize(TxIdx)
 			}
 		}
 	}

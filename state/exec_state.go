@@ -534,7 +534,7 @@ func (s *ExecState) GetPrize() *uint256.Int {
 }
 
 // This function is called after the transaction is executed
-func (s *ExecState) Commit() {
+func (s *ExecState) Commit() bool {
 	if s.can_commit {
 		s.ColdData.Commit(s.LocalWriter, s.Coinbase, s.globalIdx)
 	} else {
@@ -542,4 +542,5 @@ func (s *ExecState) Commit() {
 		s.ColdData.Abort()
 		// panic(fmt.Errorf("CannotCommit %v", s.globalIdx))
 	}
+	return s.can_commit
 }

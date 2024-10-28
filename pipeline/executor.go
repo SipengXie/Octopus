@@ -46,6 +46,9 @@ func NewExecutor(mvCache *state.MvCache, chainCfg *chain.Config,
 // if early_abort is true, we will serial execute the defered tasks (tasks do not carry out the rwset)
 // TODO: if early_abort is false, we will parallel execute the defered tasks with blockConcur, which can handle the inaccurate rwset problem
 func processDeferedTasks(deferedTasks types2.Tasks, is_serial bool, use_graph bool, processor_num int, mvCache *state.MvCache, header *types.Header, headers []*types.Header, chainCfg *chain.Config) uint64 {
+	for _, task := range deferedTasks {
+		task.MarkDefered()
+	}
 	totalGas := uint64(0)
 	if is_serial {
 		execCtx := eutils.NewExecContext(header, headers, chainCfg, false)
@@ -53,7 +56,6 @@ func processDeferedTasks(deferedTasks types2.Tasks, is_serial bool, use_graph bo
 		evm := vm.NewEVM(execCtx.BlockCtx, evmtypes.TxContext{}, execCtx.ExecState, execCtx.ChainCfg, vm.Config{})
 		for _, task := range deferedTasks {
 			// give task a new ID, the incarnation number will be set to 1
-			task.MarkDefered()
 			execCtx.SetTask(task, nil)
 			evm.TxContext = execCtx.TxCtx
 			msg := task.Msg
@@ -117,7 +119,7 @@ func Execute(processors schedule.Processors, withdraws types.Withdrawals, post_b
 		sort.Slice(deferedTasks, func(i, j int) bool {
 			return deferedTasks[i].Tid.Less(deferedTasks[j].Tid)
 		})
-		totalGas += processDeferedTasks(deferedTasks, false, false, len(processors), mvCache, header, headers, chainCfg)
+		totalGas += processDeferedTasks(deferedTasks, false /*is_serial*/, !early_abort /*use_graph*/, len(processors), mvCache, header, headers, chainCfg)
 	}
 
 	mvCache.GarbageCollection(balanceUpdate, post_block_task)

@@ -6,7 +6,6 @@ import (
 	"blockConcur/evm/vm"
 	"blockConcur/evm/vm/evmtypes"
 	"blockConcur/rwset"
-	"blockConcur/state"
 	"blockConcur/types"
 	"fmt"
 	"sync"
@@ -85,26 +84,25 @@ func (p *ProcessorSimple) Execute() {
 		}
 		msg := task.Msg
 		var newRwSet *rwset.RwSet
-		if p.execCtx.EarlyAbort {
-			p.execCtx.SetTask(task, nil)
-		} else {
+		if !p.execCtx.EarlyAbort {
 			newRwSet = rwset.NewRwSet()
-			p.execCtx.SetTask(task, newRwSet)
 		}
+		p.execCtx.SetTask(task, newRwSet)
 		evm.TxContext = p.execCtx.TxCtx
 
 		// task.Wait() // waiting for the task to be ready
 		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err == nil {
 			p.totalGas += res.UsedGas
-		} else if _, ok := err.(*state.InvalidError); ok {
-			deferedTasks = append(deferedTasks, task)
 		}
 
 		if newRwSet != nil {
 			task.RwSet = newRwSet
 		}
-		p.execCtx.ExecState.Commit()
+		committed := p.execCtx.ExecState.Commit()
+		if !committed {
+			deferedTasks = append(deferedTasks, task)
+		}
 	}
 	p.deferedTasks = deferedTasks
 }

@@ -57,7 +57,7 @@ func TestPipeline(t *testing.T) {
 		ibs_bak := env.GetIBS(uint64(blockNum), dbTx2)
 		tasks := helper.GenerateAccurateRwSets(block.Transactions(), header, headers, ibs_bak, convertNum)
 		totalTxs += len(tasks)
-		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 1), block.Withdrawals(), header.Coinbase)
+		post_block_task := types.NewPostBlockTask(utils.NewID(uint64(blockNum), len(tasks), 5), block.Withdrawals(), header.Coinbase)
 		taskMessage := &pipeline.TaskMessage{
 			Flag:      pipeline.START,
 			Tasks:     tasks,
@@ -76,11 +76,11 @@ func TestPipeline(t *testing.T) {
 
 	fmt.Printf("Total transactions processed: %d\n", totalTxs)
 
-	// nxt_ibs := env.GetIBS(uint64(endNum), dbTx)
-	// tid := mvCache.Validate(nxt_ibs)
-	// if tid != nil {
-	// 	fmt.Println(tid)
-	// 	panic("incorrect results")
-	// }
+	nxt_ibs := env.GetIBS(uint64(endNum), dbTx)
+	tid := mvCache.Validate(nxt_ibs)
+	if tid != nil {
+		fmt.Println(tid)
+		panic("incorrect results")
+	}
 
 }

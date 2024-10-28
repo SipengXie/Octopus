@@ -6,7 +6,6 @@ import (
 	"blockConcur/evm/vm"
 	"blockConcur/evm/vm/evmtypes"
 	"blockConcur/rwset"
-	"blockConcur/state"
 	"blockConcur/types"
 	"fmt"
 	"sync"
@@ -129,12 +128,10 @@ func (pl *ProcessorList) Execute() {
 		}
 		msg := task.Msg
 		var newRwSet *rwset.RwSet
-		if pl.execCtx.EarlyAbort {
-			pl.execCtx.SetTask(task, nil)
-		} else {
+		if !pl.execCtx.EarlyAbort {
 			newRwSet = rwset.NewRwSet()
-			pl.execCtx.SetTask(task, newRwSet)
 		}
+		pl.execCtx.SetTask(task, newRwSet)
 		evm.TxContext = pl.execCtx.TxCtx
 
 		// var tracer vm.EVMLogger
@@ -151,8 +148,6 @@ func (pl *ProcessorList) Execute() {
 		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err == nil {
 			pl.totalGas += res.UsedGas
-		} else if _, ok := err.(*state.InvalidError); ok {
-			deferedTasks = append(deferedTasks, task)
 		}
 
 		// if tracer != nil {
@@ -164,7 +159,10 @@ func (pl *ProcessorList) Execute() {
 		if newRwSet != nil {
 			task.RwSet = newRwSet
 		}
-		pl.execCtx.ExecState.Commit()
+		committed := pl.execCtx.ExecState.Commit()
+		if !committed {
+			deferedTasks = append(deferedTasks, task)
+		}
 	}
 	pl.deferedTasks = deferedTasks
 }
