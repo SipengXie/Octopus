@@ -9,8 +9,8 @@ import (
 )
 
 const startNum uint64 = 18994147
-const endNum uint64 = 18994149
-const cacheSize = 8192
+const endNum uint64 = 18994157
+const cacheSize = 4 * 1024 * 1024 / 60 // 4MB, 52 is the size of the key (addr + hash), 8 is the size of the ptr of the version chain
 const use_tree_threshold = 10000
 
 // TODO: 目前我们必须要Early_abort,因为如果一个意料之外的coinbase地址出现

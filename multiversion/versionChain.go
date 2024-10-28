@@ -11,8 +11,8 @@ type VersionChain struct {
 	Tail       atomic.Value
 }
 
-func NewVersionChain() *VersionChain {
-	head := NewVersion(nil, utils.SnapshotID, Committed)
+func NewVersionChain(data interface{}) *VersionChain {
+	head := NewVersion(data, utils.SnapshotID, Committed)
 	atm := atomic.Value{}
 	atm.Store(head)
 	tail := atomic.Value{}

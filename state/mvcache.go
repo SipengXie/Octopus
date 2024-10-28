@@ -4,11 +4,10 @@ import (
 	mv "blockConcur/multiversion"
 	"blockConcur/types"
 	"blockConcur/utils"
-	"fmt"
 	"reflect"
 	"sync"
 
-	lru "github.com/hashicorp/golang-lru/v2"
+	cache "github.com/bluele/gcache"
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/common"
 )
@@ -37,7 +36,7 @@ type snapshotInterface interface {
 type MvCache struct {
 	// vcChain: version chain per record: (addr || hash) -> *VersionChain
 	// prize is stored at (COINBASE || PRIZE) -> *VersionChain
-	vcCache    *lru.Cache[string, *mv.VersionChain]
+	vcCache    cache.Cache
 	prizeChain *mv.VersionChain
 	snapshot   snapshotInterface
 	dirtyVc    sync.Map
@@ -48,14 +47,16 @@ type MvCache struct {
 
 func NewMvCache(ibs *IntraBlockState, cacheSize int) *MvCache {
 	mvCache := &MvCache{
-		prizeChain: mv.NewVersionChain(),
+		prizeChain: mv.NewVersionChain(uint256.NewInt(0)),
 		dirtyVc:    sync.Map{},
 	}
 	snapshot := NewFakeInnerState(ibs)
-	cache, initErr := lru.NewWithEvict(cacheSize, func(key string, vc *mv.VersionChain) {
+	chainCache := cache.New(cacheSize).ARC().EvictedFunc(func(key interface{}, value interface{}) {
+		key_str := key.(string)
+		vc := value.(*mv.VersionChain)
 		// it is actually a write-back process.
-		addr := common.BytesToAddress([]byte(key[:20]))
-		hash := common.BytesToHash([]byte(key[20:]))
+		addr := common.BytesToAddress([]byte(key_str[:20]))
+		hash := common.BytesToHash([]byte(key_str[20:]))
 		commit_version := vc.GetCommittedVersion()
 
 		if !commit_version.IsSnapshot() {
@@ -79,13 +80,9 @@ func NewMvCache(ibs *IntraBlockState, cacheSize int) *MvCache {
 				snapshot.SetState(addr, &hash, *value.(*uint256.Int))
 			}
 		}
-	})
+	}).Build()
 
-	if initErr != nil {
-		panic(initErr)
-	}
-
-	mvCache.vcCache = cache
+	mvCache.vcCache = chainCache
 	mvCache.snapshot = snapshot
 
 	return mvCache
@@ -93,16 +90,19 @@ func NewMvCache(ibs *IntraBlockState, cacheSize int) *MvCache {
 
 // new a version chain if not found, otherwise return the existing one.
 // The newly-created version chain will be added to the cache.
+// The data of the version chain is fetched from the snapshot.
 func (mvc *MvCache) get_or_new_vc(key string) (*mv.VersionChain, bool) {
-	vc, ok := mvc.vcCache.Get(key)
-	if ok {
-		mvc.hitCount++ // Increment hit count
-	} else {
-		mvc.missCount++ // Increment miss count
-		vc = mv.NewVersionChain()
-		mvc.vcCache.Add(key, vc)
+	if value, err := mvc.vcCache.Get(key); err == nil {
+		mvc.hitCount++
+		return value.(*mv.VersionChain), true
 	}
-	return vc, ok
+	mvc.missCount++
+	// fetch the data from the snapshot
+	addr, hash := utils.ParseKey(key)
+	data := mvc.fetchFromSnapshot(addr, hash)
+	vc := mv.NewVersionChain(data)
+	mvc.vcCache.Set(key, vc)
+	return vc, false
 }
 
 // Set the prize key, which is used to store the prize for each transaction
@@ -186,16 +186,38 @@ func (mvs *MvCache) GarbageCollection(balanceUpdate map[common.Address]*uint256.
 
 	mvs.PrunePrize(txId)
 	mvs.dirtyVc.Range(func(key, _ any) bool {
-		vc, ok := mvs.vcCache.Get(key.(string))
-		if !ok {
+		vc, err := mvs.vcCache.Get(key.(string))
+		if err != nil {
 			return true
-			// addr, hash := utils.ParseKey(key.(string))
-			// panic("version chain not found in the cache: " + addr.Hex() + " " + hash.Hex())
 		}
-		vc.GarbageCollection()
+		// Add type assertion for vc
+		if versionChain, ok := vc.(*mv.VersionChain); ok {
+			versionChain.GarbageCollection()
+		}
 		return true
 	})
 	mvs.dirtyVc = sync.Map{}
+}
+
+func (mvc *MvCache) fetchFromSnapshot(addr common.Address, hash common.Hash) interface{} {
+	var ret interface{}
+	switch hash {
+	case utils.BALANCE:
+		ret = mvc.snapshot.GetBalance(addr)
+	case utils.NONCE:
+		ret = mvc.snapshot.GetNonce(addr)
+	case utils.CODEHASH:
+		ret = mvc.snapshot.GetCodeHash(addr)
+	case utils.CODE:
+		ret = mvc.snapshot.GetCode(addr)
+	case utils.EXIST:
+		ret = mvc.snapshot.Exist(addr)
+	default:
+		var stateValue uint256.Int
+		mvc.snapshot.GetState(addr, &hash, &stateValue)
+		ret = &stateValue
+	}
+	return ret
 }
 
 // Fetch from the cache, if not found, fetch from the snapshot.
@@ -206,38 +228,20 @@ func (mvs *MvCache) GarbageCollection(balanceUpdate map[common.Address]*uint256.
 // generation problem is also a big topic.
 func (mvc *MvCache) Fetch(addr common.Address, hash common.Hash) interface{} {
 	key := utils.MakeKey(addr, hash)
-	vc, ok := mvc.get_or_new_vc(key)
-	if ok && vc.GetCommittedVersion().Data != nil {
-		return vc.GetCommittedVersion().Data
-	}
-	// fetch the data from the snapshot
-	v := vc.GetCommittedVersion()
-	switch hash {
-	case utils.BALANCE:
-		v.Data = mvc.snapshot.GetBalance(addr)
-	case utils.NONCE:
-		v.Data = mvc.snapshot.GetNonce(addr)
-	case utils.CODEHASH:
-		v.Data = mvc.snapshot.GetCodeHash(addr)
-	case utils.CODE:
-		v.Data = mvc.snapshot.GetCode(addr)
-	case utils.EXIST:
-		v.Data = mvc.snapshot.Exist(addr)
-	default:
-		ret := uint256.NewInt(0)
-		mvc.snapshot.GetState(addr, &hash, ret)
-		v.Data = ret
-	}
-	return v.Data
+	vc, _ := mvc.get_or_new_vc(key)
+	return vc.GetCommittedVersion().Data // the data is fetched from the snapshot
 }
 
 func (mvc *MvCache) peekFetch(key string) *mv.Version {
-	vc, ok := mvc.vcCache.Peek(key)
-	if !ok {
+	// vc, ok := mvc.vcCache.Peek(key)
+	vc, err := mvc.vcCache.Get(key) // we need a peek function which does not update the access time
+	if err != nil {
 		return nil
 	}
-	lastCommit := vc.GetCommittedVersion()
-	return lastCommit
+	if versionChain, ok := vc.(*mv.VersionChain); ok {
+		return versionChain.GetCommittedVersion()
+	}
+	return nil
 }
 
 func (mvc *MvCache) peekExist(addr common.Address) bool {
@@ -251,17 +255,14 @@ func (mvc *MvCache) peekExist(addr common.Address) bool {
 // TODO: There're mistakes such as selfdestructed6780
 func (mvc *MvCache) Validate(ibs *IntraBlockState) *utils.ID {
 	minTid := utils.EndID
-	keys := mvc.vcCache.Keys()
+	keys := mvc.vcCache.Keys(false)
 	for _, key := range keys {
-		lastCommit := mvc.peekFetch(key)
+		lastCommit := mvc.peekFetch(key.(string))
 		if lastCommit.IsSnapshot() {
 			continue
 		}
 		val := lastCommit.Data
-		addr, hash := utils.ParseKey(key)
-		if lastCommit.Tid.TxIndex == 114 && lastCommit.Tid.BlockNumber == 19452469 && hash == utils.EXIST {
-			fmt.Println(lastCommit.Tid)
-		}
+		addr, hash := utils.ParseKey(key.(string))
 		var ibsValue interface{}
 		switch hash {
 		case utils.BALANCE:
