@@ -36,11 +36,12 @@ type ExecState struct {
 	// A shared state for the paralle execution of a block
 	// Can be concurrently read by multiple goroutines
 	// but should not be written to concurrently
-	ColdData       ColdState
-	LocalWriter    *localWrite
-	journal        *journal_exec
-	validRevisions []revision
-	nextRevisionID int
+	ColdData         ColdState
+	LocalWriter      *localWrite
+	journal          *journal_exec
+	validRevisions   []revision
+	nextRevisionID   int
+	transientStorage transientStorage
 
 	NewRwSet *rwset.RwSet
 	OldRwSet *rwset.RwSet
@@ -59,17 +60,18 @@ type ExecState struct {
 
 func NewForRwSetGen(ibs *IntraBlockState, coinbase common.Address, early_abort bool, cacheSize int) *ExecState {
 	return &ExecState{
-		ColdData:       ibs,
-		LocalWriter:    newLocalWrite(),
-		journal:        newJournal_exec(),
-		validRevisions: make([]revision, 0),
-		nextRevisionID: 0,
-		NewRwSet:       nil,
-		OldRwSet:       nil,
-		accessList:     newAccessList(),
-		Coinbase:       coinbase,
-		early_abort:    early_abort,
-		can_commit:     true,
+		ColdData:         ibs,
+		LocalWriter:      newLocalWrite(),
+		journal:          newJournal_exec(),
+		validRevisions:   make([]revision, 0),
+		nextRevisionID:   0,
+		transientStorage: newTransientStorage(),
+		NewRwSet:         nil,
+		OldRwSet:         nil,
+		accessList:       newAccessList(),
+		Coinbase:         coinbase,
+		early_abort:      early_abort,
+		can_commit:       true,
 	}
 }
 
@@ -77,17 +79,18 @@ func NewForRun(mvCache *MvCache, coinbase common.Address, early_abort bool) *Exe
 	coldData := NewExecColdState(mvCache)
 	coldData.SetCoinbase(coinbase)
 	return &ExecState{
-		ColdData:       coldData,
-		LocalWriter:    newLocalWrite(),
-		journal:        newJournal_exec(),
-		validRevisions: make([]revision, 0),
-		nextRevisionID: 0,
-		NewRwSet:       nil,
-		OldRwSet:       nil,
-		accessList:     newAccessList(),
-		Coinbase:       coinbase,
-		early_abort:    early_abort,
-		can_commit:     true,
+		ColdData:         coldData,
+		LocalWriter:      newLocalWrite(),
+		journal:          newJournal_exec(),
+		validRevisions:   make([]revision, 0),
+		nextRevisionID:   0,
+		transientStorage: newTransientStorage(),
+		NewRwSet:         nil,
+		OldRwSet:         nil,
+		accessList:       newAccessList(),
+		Coinbase:         coinbase,
+		early_abort:      early_abort,
+		can_commit:       true,
 	}
 }
 
@@ -343,12 +346,11 @@ func (s *ExecState) SetState(addr common.Address, slot *common.Hash, value uint2
 }
 
 func (s *ExecState) GetTransientState(addr common.Address, key common.Hash) uint256.Int {
-	// Stub implementation
-	return uint256.Int{}
+	return s.transientStorage.Get(addr, key)
 }
 
 func (s *ExecState) SetTransientState(addr common.Address, key common.Hash, value uint256.Int) {
-	// Stub implementation
+	s.transientStorage.Set(addr, key, value)
 }
 
 func (s *ExecState) Selfdestruct(addr common.Address) bool {
@@ -459,7 +461,7 @@ func (s *ExecState) Prepare(rules *chain.Rules, sender, coinbase common.Address,
 		}
 	}
 	// Reset transient storage at the beginning of transaction execution
-	// s.transientStorage = newTransientStorage()
+	s.transientStorage = newTransientStorage()
 }
 
 func (s *ExecState) AddressInAccessList(addr common.Address) bool {

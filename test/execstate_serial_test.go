@@ -36,6 +36,18 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 	mvCache := state.NewMvCache(ibs, cacheSize)
 	headers := env.FetchHeaders(startNum-256, endNum)
 
+	// Track metrics across all blocks
+	var tpsValues []float64
+	var gpsValues []float64
+	var totalTxs uint64
+	var totalGasUsed uint64
+	var totalDuration time.Duration
+
+	var ret uint256.Int
+	slot := common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000b3")
+	ibs.GetState(common.HexToAddress("0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02"), &slot, &ret)
+	fmt.Println(ret, ret.Hex())
+
 	for blockNum := startNum; blockNum < endNum; blockNum++ {
 		block, header := env.GetBlockAndHeader(uint64(blockNum))
 		txs := block.Transactions()
@@ -63,16 +75,16 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 		for _, task := range tasks {
 			newRwSet := rwset.NewRwSet()
 			execCtx.SetTask(task, newRwSet)
-			evm := vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
-
-			// var tracer vm.EVMLogger
-			// var evm *vm.EVM
-			// if task.TxHash == common.HexToHash("0xaf37a7093d37b834a1f3cd04a03beb6c4dbb545bdb43fcaa8a3be161e5c0de5a") {
-			// 	tracer = helper.NewStructLogger(&helper.LogConfig{})
-			// 	evm = vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{Debug: true, Tracer: tracer})
-			// } else {
-			// 	evm = vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
-			// }
+			// evm := vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
+			var tracer vm.EVMLogger
+			var evm *vm.EVM
+			if task.Tid.BlockNumber == 19672814 && task.Tid.TxIndex == 10 {
+				fmt.Println(task.TxHash)
+				tracer = helper.NewStructLogger(&helper.LogConfig{})
+				evm = vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{Debug: true, Tracer: tracer})
+			} else {
+				evm = vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
+			}
 
 			result, err := core.ApplyMessage(evm, task.Msg, new(core.GasPool).AddGas(task.Msg.Gas()).AddBlobGas(task.Msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 			if err != nil {
@@ -81,27 +93,45 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 			task.RwSet = newRwSet
 			execState.Commit()
 
-			// if tracer != nil {
-			// 	if structLogs, ok := tracer.(*helper.StructLogger); ok {
-			// 		structLogs.Flush(task.TxHash)
-			// 	}
-			// }
+			if tracer != nil {
+				if structLogs, ok := tracer.(*helper.StructLogger); ok {
+					structLogs.Flush(task.TxHash)
+					panic("debug")
+				}
+			}
 
 			totalGas += result.UsedGas
 		}
 		mvCache.GarbageCollection(balanceUpdate, post_block_task)
 
 		duration := time.Since(startTime)
+		totalDuration += duration
+		totalTxs += uint64(len(txs))
+		totalGasUsed += totalGas
+
+		// Calculate per-block metrics
 		tps := float64(len(txs)) / duration.Seconds()
 		gps := float64(totalGas) / duration.Seconds()
+		tpsValues = append(tpsValues, tps)
+		gpsValues = append(gpsValues, gps)
 
-		fmt.Printf("Block %d: TPS = %.2f, GPS = %.2f\n", blockNum, tps, gps)
-
-		ibs_bak := env.GetIBS(uint64(blockNum+1), dbTx)
-		tid := mvCache.Validate(ibs_bak)
+		nxt_ibs := env.GetIBS(uint64(blockNum+1), dbTx)
+		tid := mvCache.Validate(nxt_ibs)
 		if tid != nil {
-			fmt.Println(tid)
-			break
+			panic(fmt.Sprintf("State validation failed at block %d, tid: %v", blockNum, tid))
 		}
 	}
+
+	// Calculate overall metrics
+	totalTps := float64(totalTxs) / totalDuration.Seconds()
+	totalGps := float64(totalGasUsed) / totalDuration.Seconds()
+
+	// Calculate standard deviation and median
+	tpsStdDev := calculateStandardDeviation(tpsValues, totalTps)
+	gpsStdDev := calculateStandardDeviation(gpsValues, totalGps)
+	tpsMedian := calculateMedian(tpsValues)
+	gpsMedian := calculateMedian(gpsValues)
+
+	fmt.Printf("Total TPS: %.2f, TPS StdDev: %.2f, TPS Median: %.2f\n", totalTps, tpsStdDev, tpsMedian)
+	fmt.Printf("Total GPS: %.2f, GPS StdDev: %.2f, GPS Median: %.2f\n", totalGps, gpsStdDev, gpsMedian)
 }

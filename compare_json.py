@@ -29,6 +29,11 @@ def compare_json_files(file1, file2):
                         print(f"    File1: {item1[key]}")
                         print(f"    File2: {item2[key]}")
                 
+                # 格式化输出两个item
+                print("  Item from file1:")
+                print(json.dumps(item1, indent=4, ensure_ascii=False))
+                print("  Item from file2:")
+                print(json.dumps(item2, indent=4, ensure_ascii=False))
                 return  # Return immediately after finding the first difference
 
         if len(data1) != len(data2):

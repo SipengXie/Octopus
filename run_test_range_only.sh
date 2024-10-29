@@ -37,5 +37,5 @@ do
     
     echo "Running Test Range: $START_NUM-$END_NUM"
     
-    run_test_with_retry "go test -run ^TestHitRate$ blockConcur/test -v -timeout 30m -count=1" "./res/hitRate${START_NUM}_${END_NUM}.txt"
+    run_test_with_retry "go test -run ^Test_Serial_Exec_ColdState$ blockConcur/test -v -timeout 30m -count=1" "./res/serial_cache${START_NUM}_${END_NUM}.txt"
 done
