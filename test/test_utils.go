@@ -26,7 +26,7 @@ const early_abort bool = false
 // cpu resources.
 var fetchPoolSize = runtime.NumCPU()
 var ivPoolSize = runtime.NumCPU()
-var processorNum = 4
+var processorNum = 32
 var convertNum = runtime.NumCPU()
 var use_tree = func(i int) bool {
 	return i >= use_tree_threshold
