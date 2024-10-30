@@ -19,6 +19,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/params"
 )
 
 type Executor struct {
@@ -95,6 +96,14 @@ func Execute(processors schedule.Processors, withdraws types.Withdrawals, post_b
 		balanceUpdate[withdrawal.Address] = balance
 	}
 
+	// Execute pre-block system call first
+	// do not apply as we did not figure out the version problem
+	// preBlockCtx := eutils.NewExecContext(header, headers, chainCfg, early_abort)
+	// preBlockState := state.NewForRun(mvCache, header.Coinbase, early_abort)
+	// preBlockEvm := vm.NewEVM(preBlockCtx.BlockCtx, evmtypes.TxContext{}, preBlockState, preBlockCtx.ChainCfg, vm.Config{})
+	// ExecutePreBlock(preBlockEvm, preBlockState, header.ParentBeaconBlockRoot)
+
+	// Initialize processors
 	for _, processor := range processors {
 		ctx := eutils.NewExecContext(header, headers, chainCfg, early_abort)
 		ctx.ExecState = state.NewForRun(mvCache, header.Coinbase, early_abort)
@@ -149,4 +158,44 @@ func (e *Executor) Run() {
 		elapsed += cost
 		e.totalGas += gas
 	}
+}
+
+func ExecutePreBlock(evm *vm.EVM, execState *state.ExecState, parentBeaconBlockRoot *common.Hash) {
+	// Create system call data from parent beacon block root
+	if parentBeaconBlockRoot == nil {
+		return
+	}
+	data := parentBeaconBlockRoot.Bytes()
+
+	// Create system message for beacon roots
+	msg := types.NewMessage(
+		state.SystemAddress,        // from: system address
+		&params.BeaconRootsAddress, // to: beacon roots contract
+		0,                          // nonce
+		uint256.NewInt(0),          // value
+		30_000_000,                 // gas limit
+		uint256.NewInt(0),          // gas price
+		nil,                        // gas fee cap
+		nil,                        // gas tip cap
+		data,                       // input data
+		nil,                        // access list
+		false,                      // checkNonce
+		true,                       // isSystem
+		nil,                        // blob hashes
+	)
+
+	// Execute the system call
+	_, err := core.ApplyMessage(
+		evm,
+		msg,
+		new(core.GasPool).AddGas(msg.Gas()),
+		true,  // refunds
+		false, // gasBailout
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	// Finalize the transaction
+	execState.Commit()
 }

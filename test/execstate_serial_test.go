@@ -43,11 +43,6 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 	var totalGasUsed uint64
 	var totalDuration time.Duration
 
-	var ret uint256.Int
-	slot := common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000b3")
-	ibs.GetState(common.HexToAddress("0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02"), &slot, &ret)
-	fmt.Println(ret, ret.Hex())
-
 	for blockNum := startNum; blockNum < endNum; blockNum++ {
 		block, header := env.GetBlockAndHeader(uint64(blockNum))
 		txs := block.Transactions()
@@ -71,20 +66,22 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 			balance.Add(balance, amount)
 			balanceUpdate[withdrawal.Address] = balance
 		}
-
+		evm := vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
+		// do not apply as we did not figure out the version problem, we do not change the msg to task
+		// pipeline.ExecutePreBlock(evm, execState, header.ParentBeaconBlockRoot)
 		for _, task := range tasks {
 			newRwSet := rwset.NewRwSet()
 			execCtx.SetTask(task, newRwSet)
-			// evm := vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
-			var tracer vm.EVMLogger
-			var evm *vm.EVM
-			if task.Tid.BlockNumber == 19672814 && task.Tid.TxIndex == 10 {
-				fmt.Println(task.TxHash)
-				tracer = helper.NewStructLogger(&helper.LogConfig{})
-				evm = vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{Debug: true, Tracer: tracer})
-			} else {
-				evm = vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
-			}
+			evm.TxContext = execCtx.TxCtx
+			// var tracer vm.EVMLogger
+			// var evm *vm.EVM
+			// if task.Tid.BlockNumber == 19672814 && task.Tid.TxIndex == 10 {
+			// 	fmt.Println(task.TxHash)
+			// 	tracer = helper.NewStructLogger(&helper.LogConfig{})
+			// 	evm = vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{Debug: true, Tracer: tracer})
+			// } else {
+			// 	evm = vm.NewEVM(execCtx.BlockCtx, execCtx.TxCtx, execState, execCtx.ChainCfg, vm.Config{})
+			// }
 
 			result, err := core.ApplyMessage(evm, task.Msg, new(core.GasPool).AddGas(task.Msg.Gas()).AddBlobGas(task.Msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 			if err != nil {
@@ -93,12 +90,12 @@ func Test_Serial_Exec_ColdState(t *testing.T) {
 			task.RwSet = newRwSet
 			execState.Commit()
 
-			if tracer != nil {
-				if structLogs, ok := tracer.(*helper.StructLogger); ok {
-					structLogs.Flush(task.TxHash)
-					panic("debug")
-				}
-			}
+			// if tracer != nil {
+			// 	if structLogs, ok := tracer.(*helper.StructLogger); ok {
+			// 		structLogs.Flush(task.TxHash)
+			// 		panic("debug")
+			// 	}
+			// }
 
 			totalGas += result.UsedGas
 		}

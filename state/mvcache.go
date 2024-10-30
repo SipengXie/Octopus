@@ -45,6 +45,8 @@ type MvCache struct {
 	missCount  int // Cache miss count
 }
 
+var bucketNum = 32
+
 func NewMvCache(ibs *IntraBlockState, cacheSize int) *MvCache {
 	snapshot := NewFakeInnerState(ibs)
 	onEvict := func(key_str string, commit_version *mv.Version) {
@@ -72,7 +74,7 @@ func NewMvCache(ibs *IntraBlockState, cacheSize int) *MvCache {
 			}
 		}
 	}
-	chainCache := xcache.NewXCacheWithEvictFunc(32, cacheSize/32, "arc",
+	chainCache := xcache.NewXCacheWithEvictFunc(bucketNum, cacheSize/bucketNum, "arc",
 		func(key_str string, commit_version *mv.VersionChain) {
 			onEvict(key_str, commit_version.GetCommittedVersion())
 		})
