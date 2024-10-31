@@ -58,14 +58,14 @@ func TestSingleBlock(t *testing.T) {
 		inmemGpsValues = append(inmemGpsValues, inmemGps)
 		totalExecuteCost += cost_execute
 
-		// nxt_ibs := env.GetIBS(uint64(blockNum+1), dbTx)
-		// tid := mvCache.Validate(nxt_ibs)
-		// if tid != nil {
-		// 	fmt.Println(blockNum)
-		// 	fmt.Println(tid)
-		// 	fmt.Println(tasks[tid.TxIndex].TxHash.Hex())
-		// 	panic("incorrect results")
-		// }
+		nxt_ibs := env.GetIBS(uint64(blockNum+1), dbTx)
+		tid := mvCache.Validate(nxt_ibs)
+		if tid != nil {
+			fmt.Println(blockNum)
+			fmt.Println(tid)
+			fmt.Println(tasks[tid.TxIndex].TxHash.Hex())
+			panic("incorrect results")
+		}
 	}
 
 	avgTps := totalTps / float64(blockCount)

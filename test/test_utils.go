@@ -8,8 +8,8 @@ import (
 	"strconv"
 )
 
-const startNum uint64 = 19672797
-const endNum uint64 = 19672896
+const startNum uint64 = 19739697
+const endNum uint64 = 19739796
 const cacheSize = 4 * 1024 * 1024 / 60 // 4MB, 52 is the size of the key (addr + hash), 8 is the size of the ptr of the version chain
 const use_tree_threshold = 10000
 

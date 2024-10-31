@@ -16,7 +16,7 @@ func ConvertTxToTasks(txs types2.Transactions, header *types2.Header, thread_num
 	// parallel generate messages
 	cfg := params.MainnetChainConfig
 	rule := cfg.Rules(header.Number.Uint64(), header.Time)
-	tasks := make([]*types.Task, len(txs))
+	tasks := make([]*types.Task, len(txs)+1)
 	var wg sync.WaitGroup
 	bHash := header.Hash()
 	number := header.Number.Uint64()
@@ -32,7 +32,7 @@ func ConvertTxToTasks(txs types2.Transactions, header *types2.Header, thread_num
 			panic(err)
 		}
 		globalId := utils.NewID(number, input.index, 0)
-		tasks[input.index] = types.NewTask(globalId, msg.Gas(), &msg, bHash, input.tx.Hash())
+		tasks[input.index+1] = types.NewTask(globalId, msg.Gas(), &msg, bHash, input.tx.Hash())
 	})
 
 	for i, tx := range txs {
@@ -45,5 +45,7 @@ func ConvertTxToTasks(txs types2.Transactions, header *types2.Header, thread_num
 	wg.Wait()
 	pool.Release()
 
+	// add pre-block task
+	tasks[0] = types.NewPreBlockTask(utils.NewID(number, -1, 0), header.ParentBeaconBlockRoot.Bytes())
 	return tasks
 }

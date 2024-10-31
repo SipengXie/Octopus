@@ -76,11 +76,11 @@ func TestPipeline(t *testing.T) {
 
 	fmt.Printf("Total transactions processed: %d\n", totalTxs)
 
-	// nxt_ibs := env.GetIBS(uint64(endNum), dbTx)
-	// tid := mvCache.Validate(nxt_ibs)
-	// if tid != nil {
-	// 	fmt.Println(tid)
-	// 	panic("incorrect results")
-	// }
+	nxt_ibs := env.GetIBS(uint64(endNum), dbTx)
+	tid := mvCache.Validate(nxt_ibs)
+	if tid != nil {
+		fmt.Println(tid)
+		panic("incorrect results")
+	}
 
 }

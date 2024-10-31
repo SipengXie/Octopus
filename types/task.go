@@ -5,9 +5,13 @@ import (
 	"blockConcur/rwset"
 	"blockConcur/utils"
 
+	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/common"
 	types2 "github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/params"
 )
+
+var SystemAddress = common.HexToAddress("0xfffffffffffffffffffffffffffffffffffffffe")
 
 type Task struct {
 	Tid   *utils.ID
@@ -116,4 +120,32 @@ func (t Tasks) Find(target *utils.ID) (int, bool) {
 		}
 	}
 	return right, false
+}
+
+func NewPreBlockTask(id *utils.ID, data []byte) *Task {
+	// Create system message for beacon roots
+	msg := types2.NewMessage(
+		SystemAddress,              // from
+		&params.BeaconRootsAddress, // to
+		0,                          // nonce
+		uint256.NewInt(0),          // value
+		30_000_000,                 // gas limit
+		uint256.NewInt(0),          // gas price
+		nil,                        // gas fee cap
+		nil,                        // gas tip cap
+		data,                       // input data
+		nil,                        // access list
+		false,                      // checkNonce
+		true,                       // isSystem
+		nil,                        // blob hashes
+	)
+
+	return &Task{
+		Tid:           id,
+		Cost:          30_000_000, // Same as gas limit
+		Msg:           &msg,
+		RwSet:         nil,
+		ReadVersions:  make(map[string]*mv.Version),
+		WriteVersions: make(map[string]*mv.Version),
+	}
 }
