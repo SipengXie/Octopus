@@ -1021,3 +1021,7 @@ func (sdb *IntraBlockState) SetTask(task *types3.Task) {
 }
 
 func (sdb *IntraBlockState) Abort() {}
+
+func (sdb *IntraBlockState) getReadIgnored() bool {
+	return false
+}

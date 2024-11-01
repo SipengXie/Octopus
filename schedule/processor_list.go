@@ -148,6 +148,10 @@ func (pl *ProcessorList) Execute() {
 		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err == nil {
 			pl.totalGas += res.UsedGas
+		} else {
+			if pl.execCtx.ExecState.GetReadIgnored() {
+				pl.execCtx.ExecState.MarkDefered()
+			}
 		}
 
 		// if tracer != nil {

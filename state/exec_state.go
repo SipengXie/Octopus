@@ -30,6 +30,7 @@ type ColdState interface {
 	HasSelfdestructed(addr common.Address) bool
 	SetCoinbase(coinbase common.Address)
 	SetTask(task *types.Task)
+	getReadIgnored() bool
 }
 
 type ExecState struct {
@@ -545,4 +546,12 @@ func (s *ExecState) Commit() bool {
 		// panic(fmt.Errorf("CannotCommit %v", s.globalIdx))
 	}
 	return s.can_commit
+}
+
+func (s *ExecState) GetReadIgnored() bool {
+	return s.ColdData.getReadIgnored()
+}
+
+func (s *ExecState) MarkDefered() {
+	s.can_commit = false
 }

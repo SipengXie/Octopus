@@ -121,6 +121,10 @@ func (pt *ProcessorTree) Execute() {
 		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err == nil {
 			pt.totalGas += res.UsedGas
+		} else {
+			if pt.execCtx.ExecState.GetReadIgnored() {
+				pt.execCtx.ExecState.MarkDefered()
+			}
 		}
 		if newRwSet != nil {
 			task.RwSet = newRwSet

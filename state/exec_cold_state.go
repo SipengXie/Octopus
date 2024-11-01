@@ -42,6 +42,7 @@ type ExecColdState struct {
 	output_predict *versionMap   // some pointers of the inner_state, only used in commit_localwrite
 	prize_predict  []*mv.Version // some pointers of the inner_state, only used in commit_localwrite
 	inner_state    *MvCache      // the same level as the exec_cold_states, for data that are not in input and output
+	read_ignored   bool          // if the read is ignored, we will let the upper layer know
 }
 
 func NewExecColdState(mvc *MvCache) *ExecColdState {
@@ -63,7 +64,9 @@ func (s *ExecColdState) SetCoinbase(coinbase common.Address) {
 func (s *ExecColdState) GetBalance(addr common.Address) *uint256.Int {
 	var balance *uint256.Int
 	var ok bool
-	version := s.input_predict.get(addr, utils.BALANCE).GetVisible()
+	predict_version := s.input_predict.get(addr, utils.BALANCE)
+	version := predict_version.GetVisible()
+	s.read_ignored = s.read_ignored || version != predict_version
 	if version == nil {
 		balance, ok = s.inner_state.Fetch(addr, utils.BALANCE).(*uint256.Int)
 		if !ok {
@@ -83,7 +86,9 @@ func (s *ExecColdState) GetBalance(addr common.Address) *uint256.Int {
 func (s *ExecColdState) GetNonce(addr common.Address) uint64 {
 	var nonce uint64
 	var ok bool
-	version := s.input_predict.get(addr, utils.NONCE).GetVisible()
+	predict_version := s.input_predict.get(addr, utils.NONCE)
+	version := predict_version.GetVisible()
+	s.read_ignored = s.read_ignored || version != predict_version
 	if version == nil {
 		nonce, ok = s.inner_state.Fetch(addr, utils.NONCE).(uint64)
 		if !ok {
@@ -103,7 +108,9 @@ func (s *ExecColdState) GetNonce(addr common.Address) uint64 {
 func (s *ExecColdState) GetCodeHash(addr common.Address) common.Hash {
 	var codeHash common.Hash
 	var ok bool
-	version := s.input_predict.get(addr, utils.CODEHASH).GetVisible()
+	predict_version := s.input_predict.get(addr, utils.CODEHASH)
+	version := predict_version.GetVisible()
+	s.read_ignored = s.read_ignored || version != predict_version
 	if version == nil {
 		codeHash, ok = s.inner_state.Fetch(addr, utils.CODEHASH).(common.Hash)
 		if !ok {
@@ -123,7 +130,9 @@ func (s *ExecColdState) GetCodeHash(addr common.Address) common.Hash {
 func (s *ExecColdState) GetCode(addr common.Address) []byte {
 	var code []byte
 	var ok bool
-	version := s.input_predict.get(addr, utils.CODE).GetVisible()
+	predict_version := s.input_predict.get(addr, utils.CODE)
+	version := predict_version.GetVisible()
+	s.read_ignored = s.read_ignored || version != predict_version
 	if version == nil {
 		code, ok = s.inner_state.Fetch(addr, utils.CODE).([]byte)
 		if !ok {
@@ -145,7 +154,9 @@ func (s *ExecColdState) GetCodeSize(addr common.Address) int {
 }
 
 func (s *ExecColdState) GetState(addr common.Address, hash *common.Hash, value *uint256.Int) {
-	version := s.input_predict.get(addr, *hash).GetVisible()
+	predict_version := s.input_predict.get(addr, *hash)
+	version := predict_version.GetVisible()
+	s.read_ignored = s.read_ignored || version != predict_version
 	if version == nil {
 		slot, ok := s.inner_state.Fetch(addr, *hash).(*uint256.Int)
 		if !ok {
@@ -165,7 +176,9 @@ func (s *ExecColdState) GetState(addr common.Address, hash *common.Hash, value *
 
 func (s *ExecColdState) Exist(addr common.Address) bool {
 	var exist, ok bool
-	version := s.input_predict.get(addr, utils.EXIST).GetVisible()
+	predict_version := s.input_predict.get(addr, utils.EXIST)
+	version := predict_version.GetVisible()
+	s.read_ignored = s.read_ignored || version != predict_version
 	if version == nil {
 		exist, ok = s.inner_state.Fetch(addr, utils.EXIST).(bool)
 		if !ok {
@@ -264,4 +277,8 @@ func (s *ExecColdState) commitWithoutOutput(lw *localWrite, coinbase common.Addr
 		}
 	}
 
+}
+
+func (s *ExecColdState) getReadIgnored() bool {
+	return s.read_ignored
 }

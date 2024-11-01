@@ -94,6 +94,10 @@ func (p *ProcessorSimple) Execute() {
 		res, err := core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(msg.Gas()).AddBlobGas(msg.BlobGas()), true /* refunds */, false /* gasBailout */)
 		if err == nil {
 			p.totalGas += res.UsedGas
+		} else {
+			if p.execCtx.ExecState.GetReadIgnored() {
+				p.execCtx.ExecState.MarkDefered()
+			}
 		}
 
 		if newRwSet != nil {
