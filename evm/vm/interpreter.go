@@ -25,7 +25,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common/math"
 	"github.com/ledgerwatch/log/v3"
 
-	"blockConcur/evm/vm/stack"
+	"octopus/evm/vm/stack"
 )
 
 // Config are the configuration options for the Interpreter

@@ -1,9 +1,9 @@
 package pipeline
 
 import (
-	dag "blockConcur/graph"
-	"blockConcur/schedule"
 	"fmt"
+	dag "octopus/graph"
+	"octopus/schedule"
 	"sync"
 	"time"
 )
@@ -11,7 +11,7 @@ import (
 type MODE int
 
 const (
-	BlkConcur MODE = iota
+	octopus MODE = iota
 	HESI
 	LOBA
 	HEFT
@@ -45,7 +45,7 @@ func Schedule(graph *dag.Graph, useTree bool, numWorker int, mode MODE) (float64
 	var makespan uint64
 	var method schedule.Method
 	switch mode {
-	case BlkConcur:
+	case octopus:
 		// processors, makespan, method = scheduleAgg.Schedule()
 		processors, makespan, method = scheduleAgg.ScheduleHEFT()
 	case HESI:
@@ -82,7 +82,7 @@ func (s *Scheduler) Run() {
 			return
 		}
 
-		cost, processors, makespan, _ := Schedule(input.Graph, s.UseTree, s.NumWorker, BlkConcur)
+		cost, processors, makespan, _ := Schedule(input.Graph, s.UseTree, s.NumWorker, octopus)
 		elapsed += cost
 		outMessage := &ScheduleMessage{
 			Flag:       START,

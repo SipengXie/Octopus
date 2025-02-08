@@ -1,9 +1,9 @@
 package test
 
 import (
-	"blockConcur/helper"
-	"blockConcur/rwset"
 	"fmt"
+	"octopus/helper"
+	"octopus/rwset"
 	"testing"
 
 	"golang.org/x/exp/rand"

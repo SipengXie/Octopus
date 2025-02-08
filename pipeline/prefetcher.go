@@ -1,12 +1,12 @@
 package pipeline
 
 import (
-	mv "blockConcur/multiversion"
-	"blockConcur/rwset"
-	"blockConcur/state"
-	"blockConcur/types"
-	"blockConcur/utils"
 	"fmt"
+	mv "octopus/multiversion"
+	"octopus/rwset"
+	"octopus/state"
+	"octopus/types"
+	"octopus/utils"
 	"sync"
 	"time"
 

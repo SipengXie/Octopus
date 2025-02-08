@@ -1,10 +1,10 @@
 package schedule
 
 import (
-	"blockConcur/graph"
-	"blockConcur/types"
-	"blockConcur/utils" // Assuming this import is necessary for utils.NewID
 	"fmt"
+	"octopus/graph"
+	"octopus/types"
+	"octopus/utils" // Assuming this import is necessary for utils.NewID
 	"sync"
 	"testing"
 

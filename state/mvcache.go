@@ -1,9 +1,9 @@
 package state
 
 import (
-	mv "blockConcur/multiversion"
-	"blockConcur/types"
-	"blockConcur/utils"
+	mv "octopus/multiversion"
+	"octopus/types"
+	"octopus/utils"
 	"reflect"
 	"sync"
 

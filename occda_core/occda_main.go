@@ -1,13 +1,13 @@
 package occda_core
 
 import (
-	"blockConcur/eutils"
-	core "blockConcur/evm"
-	"blockConcur/evm/vm"
-	"blockConcur/rwset"
-	"blockConcur/state"
-	"blockConcur/utils"
 	"container/heap"
+	"octopus/eutils"
+	core "octopus/evm"
+	"octopus/evm/vm"
+	"octopus/rwset"
+	"octopus/state"
+	"octopus/utils"
 	"runtime"
 	"sync"
 	"sync/atomic"

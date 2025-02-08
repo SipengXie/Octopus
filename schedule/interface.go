@@ -1,8 +1,8 @@
 package schedule
 
 import (
-	"blockConcur/eutils"
-	"blockConcur/types"
+	"octopus/eutils"
+	"octopus/types"
 	"sync"
 )
 

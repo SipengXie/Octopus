@@ -1,10 +1,10 @@
 package pipeline
 
 import (
-	dag "blockConcur/graph"
-	"blockConcur/rwset"
-	"blockConcur/schedule"
-	"blockConcur/types"
+	dag "octopus/graph"
+	"octopus/rwset"
+	"octopus/schedule"
+	"octopus/types"
 
 	types2 "github.com/ledgerwatch/erigon/core/types"
 )

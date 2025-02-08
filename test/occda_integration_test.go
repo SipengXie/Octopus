@@ -1,13 +1,13 @@
 package test
 
 import (
-	"blockConcur/helper"
-	occdacore "blockConcur/occda_core"
-	"blockConcur/pipeline"
-	"blockConcur/state"
-	"blockConcur/types"
-	"blockConcur/utils"
 	"fmt"
+	"octopus/helper"
+	occdacore "octopus/occda_core"
+	"octopus/pipeline"
+	"octopus/state"
+	"octopus/types"
+	"octopus/utils"
 	"testing"
 
 	"github.com/holiman/uint256"

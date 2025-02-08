@@ -1,12 +1,12 @@
 package schedule
 
 import (
-	"blockConcur/graph"
-	"blockConcur/utils"
 	"container/heap"
+	"octopus/graph"
+	"octopus/utils"
 )
 
-// Without IBP, using simple priority, implemented by blockConcur
+// Without IBP, using simple priority, implemented by octopus
 type SchedulerHESI struct {
 	graph      *graph.Graph
 	processors Processors

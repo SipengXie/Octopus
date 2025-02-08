@@ -23,7 +23,7 @@ import (
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/math"
 
-	"blockConcur/evm/vm/stack"
+	"octopus/evm/vm/stack"
 
 	"github.com/ledgerwatch/erigon/params"
 )

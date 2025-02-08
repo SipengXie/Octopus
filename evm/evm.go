@@ -24,7 +24,7 @@ import (
 
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 
-	"blockConcur/evm/vm/evmtypes"
+	"octopus/evm/vm/evmtypes"
 
 	"github.com/ledgerwatch/erigon/consensus"
 	"github.com/ledgerwatch/erigon/consensus/merge"

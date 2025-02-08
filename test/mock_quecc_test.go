@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"testing"
 
-	"blockConcur/helper"
-	"blockConcur/pipeline"
-	"blockConcur/state"
-	"blockConcur/types"
-	"blockConcur/utils"
+	"octopus/helper"
+	"octopus/pipeline"
+	"octopus/state"
+	"octopus/types"
+	"octopus/utils"
 )
 
 func TestSingleBlockQUECC(t *testing.T) {

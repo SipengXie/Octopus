@@ -1,9 +1,9 @@
 package occda_core
 
 import (
-	"blockConcur/state"
-	"blockConcur/types"
-	"blockConcur/utils"
+	"octopus/state"
+	"octopus/types"
+	"octopus/utils"
 )
 
 type OCCDATask struct {

@@ -17,7 +17,7 @@
 package state
 
 import (
-	"blockConcur/utils"
+	"octopus/utils"
 	"sync"
 
 	"github.com/holiman/uint256"

@@ -1,8 +1,8 @@
 package helper
 
 import (
-	innerstate "blockConcur/state"
 	"context"
+	innerstate "octopus/state"
 	"sync"
 
 	"github.com/ledgerwatch/erigon-lib/chain"

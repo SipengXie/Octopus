@@ -1,15 +1,15 @@
 package test
 
 import (
-	"blockConcur/eutils"
-	core "blockConcur/evm"
-	"blockConcur/evm/vm"
-	"blockConcur/helper"
-	"blockConcur/rwset"
-	"blockConcur/state"
-	"blockConcur/types"
-	"blockConcur/utils"
 	"fmt"
+	"octopus/eutils"
+	core "octopus/evm"
+	"octopus/evm/vm"
+	"octopus/helper"
+	"octopus/rwset"
+	"octopus/state"
+	"octopus/types"
+	"octopus/utils"
 	"testing"
 	"time"
 

@@ -1,16 +1,16 @@
 package pipeline
 
 import (
-	"blockConcur/eutils"
-	core "blockConcur/evm"
-	"blockConcur/evm/vm"
-	"blockConcur/evm/vm/evmtypes"
-	dag "blockConcur/graph"
-	occdacore "blockConcur/occda_core"
-	"blockConcur/schedule"
-	"blockConcur/state"
-	types2 "blockConcur/types"
 	"fmt"
+	"octopus/eutils"
+	core "octopus/evm"
+	"octopus/evm/vm"
+	"octopus/evm/vm/evmtypes"
+	dag "octopus/graph"
+	occdacore "octopus/occda_core"
+	"octopus/schedule"
+	"octopus/state"
+	types2 "octopus/types"
 	"sort"
 	"sync"
 	"time"
@@ -44,7 +44,7 @@ func NewExecutor(mvCache *state.MvCache, chainCfg *chain.Config,
 
 // process the defered tasks
 // if early_abort is true, we will serial execute the defered tasks (tasks do not carry out the rwset)
-// TODO: if early_abort is false, we will parallel execute the defered tasks with blockConcur, which can handle the inaccurate rwset problem
+// TODO: if early_abort is false, we will parallel execute the defered tasks with octopus, which can handle the inaccurate rwset problem
 func processDeferedTasks(deferedTasks types2.Tasks, is_serial bool, use_graph bool, processor_num int, mvCache *state.MvCache, header *types.Header, headers []*types.Header, chainCfg *chain.Config) uint64 {
 	for _, task := range deferedTasks {
 		task.MarkDefered()

@@ -16,7 +16,7 @@
 
 package vm
 
-import "blockConcur/evm/vm/stack"
+import "octopus/evm/vm/stack"
 
 func memoryKeccak256(stack *stack.Stack) (uint64, bool) {
 	return calcMemSize64(stack.Back(0), stack.Back(1))

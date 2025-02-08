@@ -1,16 +1,16 @@
 package test
 
 import (
-	"blockConcur/eutils"
-	"blockConcur/evm/vm"
-	"blockConcur/helper"
-	"blockConcur/rwset"
-	"blockConcur/state"
-	"blockConcur/types"
 	"fmt"
+	"octopus/eutils"
+	"octopus/evm/vm"
+	"octopus/helper"
+	"octopus/rwset"
+	"octopus/state"
+	"octopus/types"
 	"testing"
 
-	core "blockConcur/evm"
+	core "octopus/evm"
 
 	"github.com/ledgerwatch/erigon/params"
 	"golang.org/x/exp/rand"

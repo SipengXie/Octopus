@@ -1,12 +1,12 @@
 package test
 
 import (
-	"blockConcur/helper"
-	"blockConcur/pipeline"
-	"blockConcur/state"
-	"blockConcur/types"
-	"blockConcur/utils"
 	"fmt"
+	"octopus/helper"
+	"octopus/pipeline"
+	"octopus/state"
+	"octopus/types"
+	"octopus/utils"
 	"testing"
 )
 
@@ -34,7 +34,7 @@ func TestHitRate(t *testing.T) {
 
 		_, rwAccessedBy := pipeline.Prefetch(tasks, post_block_task, fetchPool, ivPool)
 		_, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)
-		_, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.BlkConcur)
+		_, processors, _, _ := pipeline.Schedule(graph, use_tree(len(tasks)), processorNum, pipeline.octopus)
 		pipeline.Execute(processors, block.Withdrawals(), post_block_task, header, headers, env.Cfg, early_abort, mvCache)
 
 	}

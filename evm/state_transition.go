@@ -17,8 +17,8 @@
 package evm
 
 import (
-	"blockConcur/evm/vm"
-	"blockConcur/evm/vm/evmtypes"
+	"octopus/evm/vm"
+	"octopus/evm/vm/evmtypes"
 
 	"fmt"
 

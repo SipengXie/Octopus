@@ -1,13 +1,13 @@
 package schedule
 
 import (
-	"blockConcur/eutils"
-	core "blockConcur/evm"
-	"blockConcur/evm/vm"
-	"blockConcur/evm/vm/evmtypes"
-	"blockConcur/rwset"
-	"blockConcur/types"
 	"fmt"
+	"octopus/eutils"
+	core "octopus/evm"
+	"octopus/evm/vm"
+	"octopus/evm/vm/evmtypes"
+	"octopus/rwset"
+	"octopus/types"
 	"sync"
 )
 

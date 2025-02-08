@@ -1,7 +1,7 @@
 package schedule
 
 import (
-	"blockConcur/graph"
+	"octopus/graph"
 	"sync"
 )
 

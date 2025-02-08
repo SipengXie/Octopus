@@ -1,10 +1,10 @@
 package test
 
 import (
-	"blockConcur/helper"
-	"blockConcur/pipeline"
-	"blockConcur/types"
 	"fmt"
+	"octopus/helper"
+	"octopus/pipeline"
+	"octopus/types"
 	"testing"
 
 	"github.com/ledgerwatch/erigon-lib/kv"
@@ -38,9 +38,9 @@ func TestTreeListSchedule(t *testing.T) {
 		_, graph := pipeline.GenerateGraph(tasks, rwAccessedBy)
 
 		// Schedule using ProcessorList
-		listTime, _, _, _ := pipeline.Schedule(graph, false, processorNum, pipeline.BlkConcur)
+		listTime, _, _, _ := pipeline.Schedule(graph, false, processorNum, pipeline.octopus)
 
-		treeTime, _, _, _ := pipeline.Schedule(graph, true, processorNum, pipeline.BlkConcur)
+		treeTime, _, _, _ := pipeline.Schedule(graph, true, processorNum, pipeline.octopus)
 
 		fmt.Printf("  ProcessorList scheduling time: %v\n", listTime)
 		fmt.Printf("  ProcessorTree scheduling time: %v\n", treeTime)

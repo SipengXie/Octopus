@@ -1,12 +1,12 @@
 package test
 
 import (
-	"blockConcur/helper"
-	"blockConcur/pipeline"
-	"blockConcur/state"
-	"blockConcur/types"
-	"blockConcur/utils"
 	"fmt"
+	"octopus/helper"
+	"octopus/pipeline"
+	"octopus/state"
+	"octopus/types"
+	"octopus/utils"
 	"sync"
 	"testing"
 )

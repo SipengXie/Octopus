@@ -1,8 +1,8 @@
 package helper
 
 import (
-	"blockConcur/types"
-	"blockConcur/utils"
+	"octopus/types"
+	"octopus/utils"
 	"runtime"
 	"sync"
 

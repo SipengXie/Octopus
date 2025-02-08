@@ -1,9 +1,9 @@
 package schedule
 
 import (
-	"blockConcur/graph"
-	"blockConcur/utils"
 	"container/heap"
+	"octopus/graph"
+	"octopus/utils"
 )
 
 // Without priority and IBP, implemented by queCC

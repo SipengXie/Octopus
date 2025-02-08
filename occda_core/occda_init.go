@@ -3,8 +3,8 @@ package occda_core
 import (
 	"container/heap"
 
-	"blockConcur/graph"
-	"blockConcur/utils"
+	"octopus/graph"
+	"octopus/utils"
 )
 
 // HeapSid definition

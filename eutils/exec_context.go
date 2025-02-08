@@ -1,12 +1,12 @@
 package eutils
 
 import (
-	"blockConcur/evm"
-	"blockConcur/evm/vm/evmtypes"
-	"blockConcur/rwset"
-	"blockConcur/state"
-	types2 "blockConcur/types"
 	"fmt"
+	"octopus/evm"
+	"octopus/evm/vm/evmtypes"
+	"octopus/rwset"
+	"octopus/state"
+	types2 "octopus/types"
 
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon-lib/common"

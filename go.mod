@@ -1,9 +1,9 @@
-module blockConcur
+module octopus
 
 go 1.22.1
 
 replace (
-	github.com/ledgerwatch/erigon => /home/ubuntu/erigon/
+	github.com/ledgerwatch/erigon => /home/ubuntu/erigon/ // based on v2.60.8, we slightly modified the code to support concurrent state access for the IBS (add a read lock)
 	github.com/ledgerwatch/erigon-lib => /home/ubuntu/erigon/erigon-lib
 	github.com/xcache => ./xcache
 )

@@ -1,9 +1,9 @@
 package types
 
 import (
-	mv "blockConcur/multiversion"
-	"blockConcur/rwset"
-	"blockConcur/utils"
+	mv "octopus/multiversion"
+	"octopus/rwset"
+	"octopus/utils"
 
 	"github.com/ledgerwatch/erigon-lib/common"
 	types2 "github.com/ledgerwatch/erigon/core/types"

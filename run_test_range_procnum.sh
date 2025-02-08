@@ -41,12 +41,12 @@ do
         
         echo "Running Test processorNum: $procNum, Range: $START_NUM-$END_NUM"
         
-        # run_test_with_retry "go test -run ^TestRealSchedule$ blockConcur/test -v -timeout 30m -count=1" "./res/realSchedule${procNum}_${START_NUM}_${END_NUM}.txt"
-        # run_test_with_retry "go test -run ^TestSingleBlock$ blockConcur/test -v -timeout 30m -count=1" "./res/blkConcur${procNum}_${START_NUM}_${END_NUM}.txt"
-        # run_test_with_retry "go test -run ^TestSingleBlockPredict$ blockConcur/test -v -timeout 30m -count=1" "./res/blkPredictOCCDA${procNum}_${START_NUM}_${END_NUM}.txt"
-        # run_test_with_retry "go test -run ^TestSingleBlockQUECC$ blockConcur/test -v -timeout 30m -count=1" "./res/QUECC${procNum}_${START_NUM}_${END_NUM}.txt"
-        # run_test_with_retry "go test -run ^TestPipeline$ blockConcur/test -v -timeout 30m -count=1" "./res/pipeline${procNum}_${START_NUM}_${END_NUM}.txt"
-        # run_test_with_retry "go test -run ^TestOCCDAIntegration$ blockConcur/test -v -timeout 30m -count=1" "./res/OCCDAIntegration${procNum}_${START_NUM}_${END_NUM}.txt"
+        # run_test_with_retry "go test -run ^TestRealSchedule$ octopus/test -v -timeout 30m -count=1" "./res/realSchedule${procNum}_${START_NUM}_${END_NUM}.txt"
+        # run_test_with_retry "go test -run ^TestSingleBlock$ octopus/test -v -timeout 30m -count=1" "./res/octopus${procNum}_${START_NUM}_${END_NUM}.txt"
+        # run_test_with_retry "go test -run ^TestSingleBlockPredict$ octopus/test -v -timeout 30m -count=1" "./res/blkPredictOCCDA${procNum}_${START_NUM}_${END_NUM}.txt"
+        # run_test_with_retry "go test -run ^TestSingleBlockQUECC$ octopus/test -v -timeout 30m -count=1" "./res/QUECC${procNum}_${START_NUM}_${END_NUM}.txt"
+        # run_test_with_retry "go test -run ^TestPipeline$ octopus/test -v -timeout 30m -count=1" "./res/pipeline${procNum}_${START_NUM}_${END_NUM}.txt"
+        # run_test_with_retry "go test -run ^TestOCCDAIntegration$ octopus/test -v -timeout 30m -count=1" "./res/OCCDAIntegration${procNum}_${START_NUM}_${END_NUM}.txt"
     done
 done
-# run_test_with_retry "go test -run ^TestTreeList$ blockConcur/test -v -timeout 30m -count=1" "./res/treeList.txt"
+# run_test_with_retry "go test -run ^TestTreeList$ octopus/test -v -timeout 30m -count=1" "./res/treeList.txt"

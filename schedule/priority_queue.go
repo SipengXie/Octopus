@@ -1,6 +1,6 @@
 package schedule
 
-import "blockConcur/types"
+import "octopus/types"
 
 type TaskWrapper struct {
 	Task     *types.Task
